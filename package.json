@@ -1,0 +1,29 @@
+{
+  "name": "why-graph",
+  "version": "1.31.0",
+  "description": "The map for your LLM wiki: raw sources, notes and syntheses as layers, with the reason each link exists — written by you or suggested by your AI. Works with any structured vault.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "lint": "eslint src/",
+    "test": "npm run build && node pruebas/plugin.cjs && node pruebas/fuentes.cjs && node pruebas/idioma.cjs && node pruebas/interfaz.cjs && node pruebas/v128.cjs"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "graph",
+    "knowledge-management"
+  ],
+  "author": "Felipe Córdova (DBB Labs)",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "^0.4.2",
+    "globals": "^17.12.0",
+    "typescript-eslint": "^8.70.0"
+  },
+  "homepage": "https://dontbuybuild.cl"
+}

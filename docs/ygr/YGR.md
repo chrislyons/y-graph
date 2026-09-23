@@ -4,32 +4,15 @@ Project documentation index.
 
 ## Getting Started
 
-Start by creating your first document:
-
-```bash
-# Create first doc with proper naming
-cat > "docs/ygr/YGR001 Project Overview.md" <<'DOC'
-# Project Overview
-
-Brief description of the project.
-
-## Purpose
-
-Why this project exists.
-
-## Getting Started
-
-Initial setup and usage instructions.
-DOC
-```
+Read [[YGR001 Why Graph History Import]] for upstream provenance and repository history.
 
 ## Recent Documents
 
-- [[YGR001 Project Overview]] (create this first)
+- [[YGR001 Why Graph History Import]]
 
 ## All Documents
 
-- [[YGR001 Project Overview]] (create this first)
+- [[YGR001 Why Graph History Import]]
 
 ## Navigation
 

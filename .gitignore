@@ -46,3 +46,14 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+/main.js
+/main.js.map
+*.tgz
+data.json
+*.visual-check.*
+*.receipt.json
+.archify-*/
+pruebas/mirador/main.js
+pruebas/mirador/styles.css
+pruebas/mirador/vault.js
+pruebas/mirador/*.png

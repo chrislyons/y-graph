@@ -1,0 +1,60 @@
+# Publica un release cuando se empuja un tag igual a la versión del manifest (1.9.0, sin «v»),
+# que es lo que pide el directorio de Obsidian. Sube los tres archivos que instala el usuario.
+name: Release
+
+on:
+  push:
+    tags: ['*']
+
+permissions:
+  contents: write      # crear el release
+  id-token: write      # firmar la procedencia de los archivos
+  attestations: write  # guardar la atestación en GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm ci || npm install
+
+      - name: Verificar que el tag sea igual a la versión del manifest
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          MANIFEST=$(node -p "require('./manifest.json').version")
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "El tag ($TAG) no coincide con manifest.json ($MANIFEST)."
+            echo "El directorio de Obsidian exige que sean iguales y sin el prefijo v."
+            exit 1
+          fi
+
+      - name: Linter oficial de Obsidian
+        run: npx eslint src/
+
+      - name: Construir y probar (mapa, escritura, IA, idioma)
+        # La prueba de interfaz necesita Chrome y se salta sola si no está.
+        run: npm test
+
+      # Deja constancia criptográfica de que estos archivos se construyeron desde ESTE
+      # repositorio y este commit. Cualquiera lo comprueba con:
+      #   gh attestation verify main.js --repo DBB-FC/why-graph
+      - name: Firmar la procedencia de los archivos
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            main.js
+            styles.css
+
+      - name: Publicar el release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            main.js manifest.json styles.css
