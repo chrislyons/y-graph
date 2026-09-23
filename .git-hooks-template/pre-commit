@@ -1,0 +1,16 @@
+#!/bin/bash
+# Pre-commit hook: supply chain defense + documentation validation
+set -e
+
+# Supply chain checks (central hook)
+DEP_GUARD="$HOME/dev/scripts/dep-guard.sh"
+if [ -x "$DEP_GUARD" ]; then
+    "$DEP_GUARD"
+fi
+
+# Check for misplaced docs in root
+if [[ -n "$(git diff --cached --name-only | grep -E '^[A-Z][A-Z0-9]{2,3}[0-9]{3,4}.*\.md$')" ]]; then
+  echo "Error: PREFIX-numbered docs must be in docs/<prefix>/ directory"
+  echo "Commit blocked. Please move files to the correct location."
+  exit 1
+fi
