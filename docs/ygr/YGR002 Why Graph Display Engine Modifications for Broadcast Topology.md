@@ -83,7 +83,6 @@ ctx.fillText(texto, x, y);
 ctx.restore();
 ```
 *Result:* Text is 100% legible against any background color or bright glowing curve, while underlying visual ribbons remain completely visible.
-
 ### 3.2 Tutti Rendering vs. Dense Layer Highlight Isolation
 Replaced the `.slice(0, 3)` limit with density-aware visibility:
 
@@ -115,14 +114,11 @@ Updated `construir()` and `medir()`:
 - Defaulted `"ordenAlfabetico": true` in `AJUSTES_BASE` and `data.json`.
 - Added setting toggle in `AjustesMapa` ("Orden alfabético en capas").
 
-### 3.4 Layer-Density Proportioned Fonts
-Replaced hardcoded `11.5px` font sizing with a dynamic scale preserving `--font-monospace`:
-- **Routers & Consoles (L0, L4):** `12.5px` bold
-- **Audio Gateways (L2):** `11.5px`
-- **Stageboxes (L5):** `11.0px`
-- **I/O Cards (L3, 56 nodes):** `9.0px` (fits cleanly inside 56-row height)
-- **ST2110 Streams (L1, 596 nodes):** `8.0px` compact
-
+### 3.4 Unified Monospace Typography (9.0px)
+To establish an aesthetically clean, uniform typographic cadence across the entire facility view while fitting within dense layer vertical bounds:
+- Unified all text labels across all layers to the exact size of Layer 3 I/O Cards: **`9.0px`** monospace (`tam = 9`).
+- All nodes in Layer 0 (Routers), Layer 1 (Streams), Layer 2 (Gateways), Layer 3 (Cards), Layer 4 (Consoles), and Layer 5 (Stageboxes) render with identical font sizing.
+- Every item shares the same uniform scale and padding, eliminating size jumps and jarring visual hierarchy differences across layer columns.
 ### 3.5 Terminal Synthesis Layer Architecture
 To satisfy Why Graph's last-layer topic synthesis constraint while allowing stageboxes to occupy Layer 5, a dedicated Layer 6 (`Studios`) was established in `data.json`. Why Graph automatically hosts its virtual topic hubs (`ACR40`, `ACR42`, `Shared`) in Layer 6, eliminating all last-layer conflict alerts on physical stageboxes.
 
