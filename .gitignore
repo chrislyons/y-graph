@@ -53,7 +53,10 @@ data.json
 *.visual-check.*
 *.receipt.json
 .archify-*/
+pruebas/.build/
 pruebas/mirador/main.js
 pruebas/mirador/styles.css
 pruebas/mirador/vault.js
 pruebas/mirador/*.png
+/pruebas/dom-probe.html
+/pruebas/mirador/.visual-probe.html

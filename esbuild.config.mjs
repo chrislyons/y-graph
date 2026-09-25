@@ -6,15 +6,22 @@
  *
  *   node esbuild.config.mjs            una vez
  *   node esbuild.config.mjs --watch    y se reconstruye al guardar
+ *   node esbuild.config.mjs --test      build de pruebas → pruebas/.build/main-test.js
  */
 import esbuild from 'esbuild';
+import { mkdir, writeFile } from 'node:fs/promises';
 import process from 'process';
 
 const vigilar = process.argv.includes('--watch');
+const prueba = process.argv.includes('--test');
+if (prueba) {
+  await mkdir('pruebas/.build', { recursive: true });
+  await writeFile('pruebas/.build/package.json', '{"type":"commonjs"}\n');
+}
 const opciones = {
-  entryPoints: ['src/main.js'],
   bundle: true,
-  outfile: 'main.js',
+  entryPoints: [prueba ? 'src/test-entry.js' : 'src/main.js'],
+  outfile: prueba ? 'pruebas/.build/main-test.js' : 'main.js',
   format: 'cjs',
   target: 'es2020',
   platform: 'browser',
@@ -27,7 +34,7 @@ const opciones = {
   minify: false,
   sourcemap: vigilar ? 'inline' : false,
   logLevel: 'info',
-  banner: { js: '/* Mapa neuronal — construido con esbuild desde src/. No editar a mano: edita src/main.js. */' },
+  banner: { js: `/* Mapa neuronal — ${prueba ? 'build de pruebas' : 'build de producción'} con esbuild desde src/. No editar a mano. */` },
 };
 
 if (vigilar) {

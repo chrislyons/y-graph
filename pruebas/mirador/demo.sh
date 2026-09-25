@@ -9,11 +9,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 [ -x "$CHROME" ] || { echo "No encuentro Chrome. Exporta CHROME=/ruta/a/chrome"; exit 1; }
-[ -f ../../main.js ] || { echo "Falta main.js: corre npm run build"; exit 1; }
-
-cp ../../main.js main.js
 cp ../../styles.css styles.css
-printf '\nwindow.__VistaMapa = VistaMapa;\n' >> main.js
 node -e "const fs=require('fs');fs.writeFileSync('vault.js','window.__VAULT = '+fs.readFileSync('vault.json','utf8')+';')"
 
 VISTAS=("" "foco=Tostadora" "vista=vacios" "vista=camino&de=Hotel&a=Mapa" "vista=radial&foco=Camila")
@@ -37,4 +33,4 @@ cuadros[0].save(salida, save_all=True, append_images=cuadros[1:], duration=2000,
 print(f'  demo.webp  {cuadros[0].size[0]}x{cuadros[0].size[1]}  {round(os.path.getsize(salida) / 1024)} KB')
 PY
 
-rm -f main.js styles.css vault.js /tmp/demo-*.png
+rm -f styles.css vault.js /tmp/demo-*.png

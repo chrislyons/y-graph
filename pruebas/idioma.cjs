@@ -4,30 +4,25 @@
  * entradas muertas en el diccionario. Un texto sin traducir no se ve hasta que lo abre un
  * usuario en inglés: por eso es una prueba y no una nota.
  *
- *   npm test                       construye y prueba
- *   node pruebas/idioma.cjs        prueba el main.js ya construido
- *   node pruebas/idioma.cjs ruta/main.js
+ *   node pruebas/idioma.cjs                       usa pruebas/.build/main-test.js
+ *   node pruebas/idioma.cjs ruta/main-test.js     usa otro bundle de pruebas
  */
 const fs = require('fs'), path = require('path');
-const RUTA = process.argv[2] || path.join(__dirname, '../main.js');
-const texto = fs.readFileSync(RUTA, 'utf8');
+const { cargarPlugin } = require('./simulado.cjs');
+const RUTA = process.argv[2] || path.join(__dirname, '.build/main-test.js');
+const sourceFiles = ['../src/main.js', '../src/model/graph.js', '../src/model/analysis.js', '../src/model/store.js', '../src/view/state.js', '../src/view/layouts.js', '../src/view/renderer.js', '../src/view/table.js', '../src/ui/interaction.js', '../src/ui/toolbar.js', '../src/ui/filters.js', '../src/ui/inspector.js', '../src/exports.js'];
+const texto = sourceFiles.map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n');
+const fuenteI18n = fs.readFileSync(path.join(__dirname, '../src/i18n.js'), 'utf8');
 
-// Lo mínimo de la API de Obsidian para poder cargar el archivo fuera de Obsidian.
-const Base = class { registerEvent() {} };
-const simulado = {
-  Plugin: Base, ItemView: class extends Base {}, PluginSettingTab: Base, Setting: Base,
-  Menu: class {}, Modal: class {}, Notice: class {}, Platform: { isMobile: false },
-  debounce: (f) => f, setIcon: () => {}, requestUrl: async () => ({ status: 500, json: {} }),
-  normalizePath: (p) => p, getLanguage: () => global.__idioma || 'en',
-};
-const cargar = () => {
-  const m = { exports: {} };
-  new Function('require', 'module', 'exports', texto + '\nmodule.exports.__t = { EN, T, CAPAS_ESTANDAR, PROVEEDORES, PLANTILLAS };')(
-    (n) => (n === 'obsidian' ? simulado : require(n)), m, m.exports);
-  return m.exports.__t;
-};
+const cargar = () => cargarPlugin(RUTA).interno;
+const { CAPAS_ESTANDAR, PROVEEDORES, PLANTILLAS } = cargar();
 
-const { EN, CAPAS_ESTANDAR, PROVEEDORES, PLANTILLAS } = cargar();
+// El diccionario es privado por contrato: sus claves se leen estáticamente del módulo, mientras
+// que el comportamiento de T se ejecuta desde el bundle público de pruebas.
+const clavesDiccionario = new Set();
+for (const mt of fuenteI18n.matchAll(/^  (['"])((?:\\.|(?!\1).)*)\1\s*:/gm)) {
+  clavesDiccionario.add(mt[2].replace(/\\(['"\\n])/g, (_, c) => c === 'n' ? '\n' : c));
+}
 
 // Claves usadas: el primer argumento de cada T(, incluidos los ternarios.
 const usadas = new Set();
@@ -45,23 +40,22 @@ for (let i = 0; (i = texto.indexOf('T(', i)) !== -1; i += 2) {
   }
   for (const mt of arg.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)) {
     const bruto = mt[1] !== undefined ? mt[1] : mt[2];
-    usadas.add(bruto.replace(/\\(['"\\n])/g, (_, c) => (c === 'n' ? '\n' : c)));
+    usadas.add(bruto.replace(/\\(['"\\n])/g, (_, c) => c === 'n' ? '\n' : c));
   }
 }
-// Claves que llegan por variable: area(nombre, desc), CAPAS_ESTANDAR, PROVEEDORES.
 for (const mt of texto.matchAll(/area\((?:T\()?['"]([^'"]+)['"]\)?,\s*['"]((?:[^'"\\]|\\.)*)['"]/g)) { usadas.add(mt[1]); usadas.add(mt[2]); }
 for (const par of CAPAS_ESTANDAR) for (const x of par) usadas.add(x);
 for (const [, nombre, capas] of PLANTILLAS) { usadas.add(nombre); for (const par of capas) for (const x of par) usadas.add(x); }
 for (const def of Object.values(PROVEEDORES)) { usadas.add(def.ayuda); usadas.add(def.modeloAyuda); }
 
-const faltan = [...usadas].filter((k) => EN[k] === undefined);
-const sobran = Object.keys(EN).filter((k) => !usadas.has(k));
+const faltan = [...usadas].filter((k) => !clavesDiccionario.has(k));
+const sobran = [...clavesDiccionario].filter((k) => !usadas.has(k));
 console.log(`textos que pasan por T(): ${usadas.size}`);
 faltan.forEach((k) => console.log('  SIN TRADUCIR  ' + JSON.stringify(k)));
 sobran.forEach((k) => console.log('  YA NO SE USA  ' + JSON.stringify(k)));
 
 // Los dos idiomas tienen que producir texto distinto y sustituir los valores.
-const muestras = [['{0} · {1} nodos · {2} enlaces', 'Why Graph', 42, 74], ['Camino · {0} salto(s)', 2], ['Aplicar']];
+const muestras = [['Abrir el mapa'], ['Filtros del mapa'], ['Borrar todo']];
 const salida = {};
 for (const idioma of ['es', 'en']) {
   global.__idioma = idioma;

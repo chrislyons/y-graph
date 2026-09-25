@@ -33,8 +33,8 @@
 <script>
 // ── Lo que Obsidian agrega a HTMLElement, y el plugin usa ──────────────────────
 const P = HTMLElement.prototype;
-function crear(etiqueta, o) {
-  const el = document.createElement(etiqueta);
+function crearNodoWhyGraph(etiqueta, o) {
+  const el = window.document.createElement(etiqueta);
   if (typeof o === 'string') el.className = o;
   else if (o) {
     if (o.cls) el.className = Array.isArray(o.cls) ? o.cls.join(' ') : o.cls;
@@ -46,7 +46,7 @@ function crear(etiqueta, o) {
   }
   return el;
 }
-P.createEl = function (etiqueta, o) { const el = crear(etiqueta, o); this.appendChild(el); return el; };
+P.createEl = function (etiqueta, o) { const el = crearNodoWhyGraph(etiqueta, o); this.appendChild(el); return el; };
 P.createDiv = function (o) { return this.createEl('div', o); };
 P.createSpan = function (o) { return this.createEl('span', o); };
 P.setText = function (t) { this.textContent = t; return this; };
@@ -90,8 +90,9 @@ window.exports = window.module.exports;
 </script>
 <script src="setting-fiel.js"></script>
 <script>obsidian.Setting = window.__SettingFiel;</script>
-<script src="main.js"></script>
+<script src="../.build/main-test.js"></script>
 <script src="vault.js"></script>
+<script>if (!window.__VAULT) document.title = 'ERROR: no se cargó vault.js';</script>
 <script>
 // ── El vault falso, con la misma forma que la API que el plugin consulta ───────
 (async () => {
@@ -124,10 +125,11 @@ window.exports = window.module.exports;
     workspace: { on: () => ({}), getLeavesOfType: () => [], getActiveFile: () => null, revealLeaf: () => {}, getLeaf: () => ({ setViewState: async () => {} }) },
     loadLocalStorage: () => null, saveLocalStorage: () => {},
   };
-  const Plugin = window.module.exports.default || window.module.exports;
+  const testApi = window.__whyGraphTest;
+  const Plugin = testApi.default;
   const plugin = new Plugin();
   plugin.app = app;
-  plugin.ajustes = Object.assign({}, window.__AJUSTES_BASE || {}, ajustes, { animacion: false, configurado: true });
+  plugin.ajustes = Object.assign({}, testApi.AJUSTES_BASE, ajustes, { animacion: false, configurado: true });
   plugin.guardar = async () => {};
   plugin.refrescarVistas = () => {};
   plugin.tieneIA = () => false;
@@ -136,7 +138,7 @@ window.exports = window.module.exports;
   // ?vista=ajustes → dibuja la pantalla de ajustes con Setting fiel, para comprobar que
   // no se rompe a mitad de camino. Una pantalla que lanza un error se corta en silencio.
   if (new URLSearchParams(location.search).get('vista') === 'ajustes') {
-    const Tab = window.__AjustesMapa;
+    const Tab = testApi.AjustesMapa;
     const tab = new Tab(app, plugin);
     tab.containerEl = document.getElementById('hoja');
     let error = '';
@@ -153,44 +155,46 @@ window.exports = window.module.exports;
     document.title = error ? 'ERROR: ' + error : 'listo';
     return;
   }
-  const VistaMapa = window.__VistaMapa;
+  const VistaMapa = testApi.VistaMapa;
   const v = new VistaMapa({}, plugin);
   v.app = app;
   v.contentEl = document.getElementById('hoja');
   await v.onOpen();
   window.__v = v;
-  // Un foco opcional por la URL: ?foco=nombre-de-nota
+  // The view loads its graph asynchronously; interactions must wait for the public model.
+  for (let tries = 0; tries < 200 && !v.datos.nodos.length; tries++) await new Promise((resolve) => setTimeout(resolve, 25));
+  if (!v.datos.nodos.length) throw new Error('el grafo no se cargó');
   const q = new URLSearchParams(location.search);
-  const buscar = (t) => v.N.find((x) => x.titulo.toLowerCase().includes(String(t).toLowerCase()));
+  const buscar = (t) => v.datos.nodos.find((x) => x.titulo.toLowerCase().includes(String(t).toLowerCase()));
   const vista = q.get('vista') || '';
   if (vista === 'radial') {
     const n = buscar(q.get('foco') || '');
-    v.radial = true; if (n) v.foco = n.id; v.medir(); v.pintarEstado();
+    await v.setState({ ...v.getState(), modo: n ? 'radial' : 'capas', seleccion: n ? n.id : null }, v.datos);
   } else if (vista === 'vacios') {
-    v.vacios = true; v.listaVacios = v.calcularVacios(); v.abrirPanel('vacios'); v.pintarEstado();
+    await v.setState({ ...v.getState(), panel: 'vacios' }, v.datos);
   } else if (vista === 'camino') {
     const a = buscar(q.get('de')), b = buscar(q.get('a'));
-    const ruta = a && b ? v.rutaMasCorta(a.id, b.id) : null;
-    if (ruta) { v.camino = ruta; v.panelCamino(ruta); v.pintarEstado(); }
+    const ruta = a && b ? window.__whyGraphTest.rutaMasCorta(v.datos, a.id, b.id) : null;
+    if (ruta) await v.setState({ ...v.getState(), ruta, seleccion: null, panel: null }, v.datos);
     else document.title = 'ERROR: sin camino entre esas notas';
   } else if (q.get('foco')) {
     const n = buscar(q.get('foco'));
     if (n) v.enfocar(n.id, true); else document.title = 'ERROR: no encuentro esa nota';
   }
-  v.encuadrar(); v.dibujar();
-  // segunda pasada: el panel cambia el ancho útil y el mapa se reencuadra
+  v.encuadrar(); v.renderNow();
   await new Promise((r) => setTimeout(r, 120));
-  v.medir(); v.encuadrar(); v.dibujar();
-  // ?diag=1 → deja los números del encuadre en el DOM, para medir sin adivinar
+  v.encuadrar(); v.renderNow();
   if (q.get('diag')) {
-    const xs = v.N.filter((n2) => !n2.oculto).map((n2) => n2.x);
+    const scene = v.renderer.scene;
+    const camera = v.getState().camara;
+    const xs = scene.nodes.map((n2) => n2.x);
     const pre = document.createElement('pre'); pre.id = 'diag';
     pre.textContent = JSON.stringify({
-      W: v.W, H: v.H, escala: +v.escala.toFixed(3), anchoLogico: v.anchoLogico, vista: v.vista,
-      xReal: [Math.min(...xs) * v.vista.k + v.vista.x, Math.max(...xs) * v.vista.k + v.vista.x],
-      barra: v.barra.getBoundingClientRect().width, angosto: v.contentEl.classList.contains('angosto'),
-      buscador: document.querySelector('.mn-buscar').getBoundingClientRect().width,
-      chipsFuera: [...document.querySelectorAll('.mn-chip')].filter((c) => c.getBoundingClientRect().right > v.W - 2).map((c) => c.textContent),
+      width: v.viewportSize().width, height: v.viewportSize().height,
+      sceneBounds: scene.bounds, camera,
+      xReal: [Math.min(...xs) * camera.k + camera.x, Math.max(...xs) * camera.k + camera.x],
+      inspector: document.querySelector('.mn-workbench-inspector')?.getBoundingClientRect().width || 0,
+      search: document.querySelector('.mn-workbench-toolbar input[type="search"]')?.getBoundingClientRect().width || 0,
     }, null, 1);
     document.body.appendChild(pre);
   }

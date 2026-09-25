@@ -127,19 +127,25 @@ function vaultSimulado(notas) {
   return { app, notas, escrituras, el, contexto2D };
 }
 
-/* Carga el plugin construido (main.js) y devuelve sus piezas internas. */
+/* Carga el bundle de pruebas (sin tocar sus variables privadas) y devuelve sus piezas públicas. */
 function cargarPlugin(rutaMain) {
-  const ruta = rutaMain || path.join(__dirname, '../main.js');
-  const texto = fs.readFileSync(ruta, 'utf8');
+  const ruta = rutaMain || path.join(__dirname, '.build/main-test.js');
   const sim = obsidianSimulado();
-  const m = { exports: {} };
+  const Module = require('module');
+  const original = Module._load;
   global.window = global.window || { devicePixelRatio: 2, setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (h) => clearTimeout(h), matchMedia: () => ({ matches: false }), requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, open: (u) => { (global.__abiertas = global.__abiertas || []).push(u); }, localStorage: { getItem: () => null } };
   global.document = global.document || { visibilityState: 'visible' };
   global.getComputedStyle = global.getComputedStyle || (() => ({ getPropertyValue: () => '' }));
   global.ResizeObserver = global.ResizeObserver || class { observe() {} disconnect() {} };
-  new Function('require', 'module', 'exports', texto + '\nmodule.exports.__t = { construir, VistaMapa, AsistenteCapas, AjustesMapa, AJUSTES_BASE, PROVEEDORES, CAPAS_ESTANDAR, EN, T, enlacesDe, detectarCarpetas, leerAjustes, CLAVE_IA, citasDe, carpetasFuentesDe, nodoFuenteDe, inventarioFuentes, detectarFuentes, subcarpetasFechadas, PLANTILLAS, REGLAS, plantillaActual };')(
-    (n) => (n === 'obsidian' ? sim.modulo : require(n)), m, m.exports);
-  return { Plugin: m.exports.default || m.exports, interno: m.exports.__t, avisos: sim.avisos, filas: sim.filas, ajustesUI: sim.ajustesUI };
+  Module._load = function (nombre, padre, esPrincipal) { return nombre === 'obsidian' ? sim.modulo : original.call(this, nombre, padre, esPrincipal); };
+  try {
+    delete require.cache[require.resolve(ruta)];
+    delete global.__whyGraphTest;
+    require(ruta);
+  } finally { Module._load = original; }
+  const api = global.window.__whyGraphTest;
+  if (!api) throw new Error('El bundle de pruebas no expuso __whyGraphTest');
+  return { Plugin: api.default, interno: api, avisos: sim.avisos, filas: sim.filas, ajustesUI: sim.ajustesUI };
 }
 
 /* Marcador de pruebas mínimo: cuenta y explica la primera diferencia. */

@@ -13,18 +13,16 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 const dir = path.join(__dirname, 'mirador');
 
 if (!fs.existsSync(CHROME)) { console.log('interfaz: saltada (no hay Chrome en este equipo)'); process.exit(0); }
-if (!fs.existsSync(path.join(__dirname, '../main.js'))) { console.log('interfaz: falta main.js — corre npm run build'); process.exit(1); }
+if (!fs.existsSync(path.join(__dirname, '.build/main-test.js'))) { console.log('interfaz: falta el build de pruebas — corre node esbuild.config.mjs --test'); process.exit(1); }
 
-// El mirador dibuja con el build: se preparan sus copias igual que capturas.sh
-fs.copyFileSync(path.join(__dirname, '../main.js'), path.join(dir, 'main.js'));
+// El mirador dibuja con el mismo bundle de pruebas que usan las suites CommonJS.
 fs.copyFileSync(path.join(__dirname, '../styles.css'), path.join(dir, 'styles.css'));
-fs.appendFileSync(path.join(dir, 'main.js'), '\nwindow.__VistaMapa = VistaMapa; window.__AjustesMapa = AjustesMapa; window.__AJUSTES_BASE = AJUSTES_BASE;\n');
 fs.writeFileSync(path.join(dir, 'vault.js'), 'window.__VAULT = ' + fs.readFileSync(path.join(dir, 'vault.json'), 'utf8') + ';');
 
 const dom = execFileSync(CHROME, ['--headless', '--disable-gpu', '--window-size=900,900',
   '--virtual-time-budget=5000', '--dump-dom', `file://${dir}/mirador.html?vista=ajustes`], { encoding: 'utf8', maxBuffer: 64e6 });
 
-for (const f of ['main.js', 'styles.css', 'vault.js']) fs.unlinkSync(path.join(dir, f));
+for (const f of ['styles.css', 'vault.js']) fs.unlinkSync(path.join(dir, f));
 
 const m = dom.match(/<pre id="diag">([\s\S]*?)<\/pre>/);
 if (!m) { console.log('interfaz: ✕ la pantalla de ajustes no llegó a dibujarse'); process.exit(1); }

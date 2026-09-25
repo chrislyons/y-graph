@@ -10,12 +10,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 DEST="${1:-$HOME/Desktop/why-graph-ficha}"
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 [ -x "$CHROME" ] || { echo "No encuentro Chrome. Exporta CHROME=/ruta/a/chrome"; exit 1; }
-[ -f ../../main.js ] || { echo "Falta main.js: corre npm run build"; exit 1; }
-
-mkdir -p "$DEST"
-cp ../../main.js main.js
 cp ../../styles.css styles.css
-printf '\nwindow.__VistaMapa = VistaMapa; window.__AjustesMapa = AjustesMapa; window.__AJUSTES_BASE = AJUSTES_BASE;\n' >> main.js
 node -e "const fs=require('fs');fs.writeFileSync('vault.js','window.__VAULT = '+fs.readFileSync('vault.json','utf8')+';')"
 
 # $1 nombre · $2 ancho lógico · $3 alto lógico · $4 parámetros de la vista
@@ -52,5 +47,5 @@ tomar "movil-1-el-mapa"   450 800 "movil=1"
 tomar "movil-2-el-porque" 450 800 "movil=1&foco=Tostadora"
 tomar "movil-3-radial"    450 800 "movil=1&vista=radial&foco=Camila"
 
-rm -f main.js styles.css vault.js
+rm -f styles.css vault.js
 echo "Listas en $DEST"

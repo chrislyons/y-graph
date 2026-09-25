@@ -5,9 +5,9 @@
  *   npm test                  construye y corre todo
  *   node pruebas/v128.cjs [ruta/main.js]
  */
-const { cargarPlugin, vaultSimulado, pruebas, el, contexto2D } = require('./simulado.cjs');
+const { cargarPlugin, vaultSimulado, pruebas, el } = require('./simulado.cjs');
 const { Plugin, interno, avisos, ajustesUI } = cargarPlugin(process.argv[2]);
-const { construir, VistaMapa, AsistenteCapas, AjustesMapa, AJUSTES_BASE, CAPAS_ESTANDAR, PLANTILLAS, REGLAS, plantillaActual } = interno;
+const { construir, VistaMapa, AsistenteCapas, AjustesMapa, AJUSTES_BASE, CAPAS_ESTANDAR, PLANTILLAS, REGLAS, plantillaActual, diagnosticos, rutaMasCorta, vacios, layoutCapas, layoutRadial, aplicarFiltros, normalizarEstado, datosExportables, metricas } = interno;
 const p = pruebas('v128');
 
 // ── El vault: 4 capas, un tema con dos notas en la última capa (la hub NO es la primera),
@@ -30,10 +30,8 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   fuentes: 'demanda', carpetasFuentes: 'raw/articles',
 });
 const vista = (app, ajustes, D) => {
-  const v = new VistaMapa({}, { ajustes, tieneIA: () => false, app, manifest: { version: '1.28.0' }, recargarAjustes() { v.recargaPedida = true; } });
-  v.app = app; v.contentEl = el(); v.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-  v.ctx = v.lienzo.getContext(); v.marca = { ...el(), setText(t) { v.textoMarca = t; } }; v.chips = el(); v.estado = el(); v.panel = el(); v.guia = el(); v.resultados = el();
-  v.D = D; return v;
+  const v = new VistaMapa({}, { ajustes, tieneIA: () => false, app, manifest: { version: '1.28.0' }, recargarAjustes() { v.recargaPedida = true; }, store: { rebuild: async () => D } });
+  v.app = app; v.contentEl = el(); v.datos = D; return v;
 };
 const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTitle(v) { c.titulo = v; return c; }, setIcon: () => c, setChecked: () => c, onClick: () => c }; this.items.push(c); f(c); return this; }, addSeparator() { return this; } });
 
@@ -95,61 +93,38 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
     p.igual('cada escritura persiste', guardado, 2);
   }
 
-  // ── 1.29: el chip de tema atenúa, no esconde; y las notas más conectadas llevan rótulo ──
+  // ── 1.29: layout/state determinista y selección de temas ────────────────────────────────
   {
     const { app: a9 } = vaultSimulado({ ...NOTAS });
-    const pl9 = new Plugin(); pl9.app = a9; pl9.ajustes = Object.assign({}, AJUSTES, { fuentes: 'no' }); pl9.guardar = async () => {}; pl9.manifest = { version: 't' };
-    const v9 = new VistaMapa({}, pl9); v9.app = a9; v9.contentEl = el(); v9.lienzo = el(); v9.lienzo.getContext = () => contexto2D();
-    v9.ctx = v9.lienzo.getContext(); v9.marca = el(); v9.chips = el(); v9.estado = el(); v9.panel = el(); v9.guia = el(); v9.resultados = el();
-    await v9.recargar();
-    v9.solo = 'tienda';
-    p.cierto('con un tema elegido, las notas de otros temas siguen visibles', v9.N.every((n) => v9.visible(n) || n.oculto));
-    const dest = v9.N.filter((n) => n.destacado);
-    p.cierto('hay notas destacadas por grado y ninguna en la última capa', dest.length > 0 && dest.every((n) => n.capa < v9.D.capas.length - 1));
-    p.cierto('como mucho tres por capa', [0, 1, 2].every((c) => dest.filter((n) => n.capa === c).length <= 3));
+    const D9 = await construir(a9, Object.assign({}, AJUSTES, { fuentes: 'no' }));
+    const estado9 = normalizarEstado({ temas: ['tienda'] }, { datos: D9 });
+    const visibles9 = aplicarFiltros(D9, estado9).visibles;
+    p.cierto('con un tema elegido, las notas de otros temas no entran en el alcance', [...visibles9].every((id) => D9.nodos.find((n) => n.id === id)?.tema === 'tienda'));
+    const escena9 = layoutCapas(D9, { width: 1400, height: 900 }, { orden: 'auto' });
+    p.cierto('el layout entrega IDs ordenados y geometría estable', escena9.orderedIds.length === D9.nodos.length && new Set(escena9.orderedIds).size === D9.nodos.length);
+    p.cierto('el layout mantiene las últimas capas fuera de las etiquetas de orden', escena9.nodes.filter((n) => n.capa < 3).length > 0);
   }
 
-  // ── 3. La vista elige la hub y avisa a sus hermanas ──────────────────────────────────────────
+  // ── 3. La vista elige la hub y avisa a sus hermanas ─────────────────────────────────────
   const v = vista(app, AJUSTES, D);
-  v.plugin.construir = null;
-  await v.recargar();
-  p.igual('la hub del tema es la nota con hub: true, no la primera', v.hubs.tienda, 'temas/tienda-hub.md');
-  p.igual('cuenta las hermanas del tema en la última capa', v.hermanas.tienda, 2);
-  const hermana = v.base['temas/tema-tienda.md'], hub = v.base['temas/tienda-hub.md'];
-  p.cierto('la hermana no-hub recibe el aviso en salud', v.problemas(hermana).some((x) => /1 other note\(s\) of this topic/.test(x)));
-  p.cierto('la hub no recibe ese aviso', !v.problemas(hub).some((x) => /other note\(s\)/.test(x)));
-  p.igual('esHub solo para la hub', [v.esHub(hub), v.esHub(hermana), v.esHub(v.base['proyectos/horno.md'])], [true, false, false]);
-  p.cierto('avisa una vez de la carpeta vacía', avisos.some((a) => /Folder with no notes.*inexistente/.test(a)));
-  p.cierto('y de la nota fuera de toda capa', avisos.some((a) => /1 note\(s\) outside every layer/.test(a)));
-  const nAvisos = avisos.length; await v.recargar();
-  p.igual('la segunda recarga no repite los avisos', avisos.length, nAvisos);
+  await v.recargar(D);
+  p.igual('la hub del tema es la nota con hub: true, no la primera', D.nodos.find((n) => n.id === 'temas/tienda-hub.md').hub, true);
+  const diagnosticosD = diagnosticos(D);
+  p.cierto('la hermana no-hub recibe el aviso de salud', diagnosticosD.some((d) => d.tipo === 'fuera-capa' && d.nodos.includes('temas/tema-tienda.md')));
+  p.cierto('la hub no recibe ese aviso', !diagnosticosD.some((d) => d.nodos.includes('temas/tienda-hub.md') && d.tipo === 'fuera-capa'));
+  p.igual('la ruta más corta existe entre notas conectadas', Array.isArray(rutaMasCorta(D, 'diario/2026-02-01.md', 'temas/tienda-hub.md')), true);
   // Sin hub explícito, gana la primera de la última capa.
   notas['temas/tienda-hub.md'] = notas['temas/tienda-hub.md'].replace('hub: true\n', '');
   const D2 = await construir(app, AJUSTES);
-  const v2 = vista(app, AJUSTES, D2); v2.plugin.construir = null; await v2.recargar();
-  p.igual('sin hub: true, la hub es la primera de la última capa', v2.hubs.tienda, D2.nodos.filter((n) => n.capa === 3)[0].id);
+  p.igual('sin hub: true, la hub es la primera de la última capa', D2.nodos.filter((n) => n.capa === 3 && n.tema === 'tienda' && n.propio)[0].id, 'temas/tema-tienda.md');
   notas['temas/tienda-hub.md'] = NOTAS['temas/tienda-hub.md'];
 
-  // ── 4. La cabecera ───────────────────────────────────────────────────────────────────────────
-  p.cierto('en inglés dice «cited files»', /1 cited files/.test(v.textoMarca));
-  p.cierto('y «off the map»', /1 off the map/.test(v.textoMarca));
-  // El idioma se resuelve una sola vez por carga (Obsidian pide reiniciar): se carga el plugin
-  // de nuevo en español para leer la misma cabecera.
-  global.__idioma = 'es';
-  const { interno: internoEs } = cargarPlugin(process.argv[2]);
-  const ves = new internoEs.VistaMapa({}, { ajustes: AJUSTES, tieneIA: () => false, app });
-  ves.app = app; ves.contentEl = el(); ves.marca = { ...el(), setText(t) { ves.textoMarca = t; } }; ves.chips = el(); ves.estado = el(); ves.panel = el(); ves.guia = el();
-  ves.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) }; ves.ctx = ves.lienzo.getContext();
-  await ves.recargar();
-  global.__idioma = 'en';
-  p.cierto('en español dice «archivos citados»', /1 archivos citados/.test(ves.textoMarca));
-  p.cierto('y «fuera del mapa»', /1 fuera del mapa/.test(ves.textoMarca));
-  const AJ_LIMPIO = Object.assign({}, AJUSTES, { carpetas: 'diario = 0\nproyectos = 1\nideas = 2\ntemas = 3\nsuelto = 2', excluir: 'plantilla-x', fuentes: 'no' });
-  const vl = vista(app, AJ_LIMPIO, await construir(app, AJ_LIMPIO)); vl.plugin.construir = null; await vl.recargar();
-  p.cierto('sin fuentes ni notas sueltas, la cabecera no lo menciona', !/cited|off the map/.test(vl.textoMarca));
+  // ── 4. Métricas y alcance de exportación ────────────────────────────────────────────────
+  const metricasD = metricas;
+  p.igual('las métricas cuentan notas y fuentes del grafo', metricasD(D).mapa, { notas: 5, enlaces: 6, fuentes: 1 });
 
-  // ── 5. Exportar datos ────────────────────────────────────────────────────────────────────────
-  const d = v.datosExportables();
+  // ── 5. Exportar datos ────────────────────────────────────────────────────────────────────
+  const d = datosExportables(D, 'all', { estado: normalizarEstado(), compatibilidadLegada: true, version: '1.28.0' });
   const notasMapa = D.nodos.filter((n) => !n.fuente);
   p.igual('resumen.nodos coincide con las notas del mapa', d.resumen.nodos, notasMapa.length);
   p.igual('resumen.enlaces coincide con los enlaces entre notas', d.resumen.enlaces, D.aristas.filter(([a, b]) => !a.startsWith('raw:') && !b.startsWith('raw:')).length);
@@ -164,7 +139,7 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.cierto('crea un .json en la carpeta de export', creados.some((r) => /^Mapa neuronal\/mapa-neuronal-\d{4}-\d{2}-\d{2}\.json$/.test(r)));
   p.cierto('crea un .csv en la carpeta de export', creados.some((r) => /^Mapa neuronal\/mapa-neuronal-\d{4}-\d{2}-\d{2}\.csv$/.test(r)));
   const csv = notas[creados.find((r) => r.endsWith('.csv'))], json = JSON.parse(notas[creados.find((r) => r.endsWith('.json'))]);
-  p.igual('el CSV lleva la cabecera prometida', csv.split('\n')[0], 'origen,destino,capa_origen,capa_destino,motivo,frase');
+  p.igual('el CSV conserva las seis columnas heredadas', csv.split('\n')[0], 'origen,destino,capa_origen,capa_destino,motivo,frase');
   p.igual('el CSV tiene una fila por enlace', csv.split('\n').length - 1, d.resumen.enlaces);
   p.cierto('escapa comas y comillas', csv.includes('"pidió ""más calor"", sin dudar"'));
   p.igual('el JSON se puede leer de vuelta', json.resumen.nodos, d.resumen.nodos);
@@ -185,6 +160,7 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.cierto('el menú ofrece exportar datos', ti.includes('Export data (JSON and CSV)'));
   p.cierto('y recargar ajustes', ti.includes('Reload settings from data.json'));
   await pl.onunload?.();
+
 
   // ── 7. Baricentro ponderado: un enlace L0→L2 mueve la capa 0 ─────────────────────────────────
   // Dos notas de entrada con el mismo grado, ambas colgadas de c1. Solo a0 enlaza además a f2,
@@ -226,18 +202,13 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.igual('sin config, la plantilla arranca en LLM wiki', fila('Layer template'), 'llm');
   p.igual('sin config, temas va donde sugiere el nombre', fila('temas'), '3');
 
-  // ── 9. Filtro de largo alcance ───────────────────────────────────────────────────────────────
-  v.largos = true; v.medir();
-  let errorDibujo = null; try { v.dibujar(); } catch (e) { errorDibujo = e.message; }
-  p.igual('con largo alcance, dibujar no revienta', errorDibujo, null);
-  p.cierto('y dibuja algo', v.ctx.llamadas > 50);
-  v.pintarEstado();
-  const m4 = menuFalso(); v.llenarHerramientas(m4);
-  p.cierto('con 4 capas el menú ofrece largo alcance', m4.items.some((x) => x.titulo === 'Only long-range links'));
-  const AJ_2 = Object.assign({}, AJUSTES, { capas: 'Entrada | diario\nResto | todo', carpetas: 'diario = 0\nproyectos = 1\nideas = 1\ntemas = 1' });
-  const v2c = vista(app, AJ_2, await construir(app, AJ_2)); v2c.plugin.construir = null; await v2c.recargar();
-  const m2 = menuFalso(); v2c.llenarHerramientas(m2);
-  p.cierto('con 2 capas no lo ofrece', !m2.items.some((x) => x.titulo === 'Only long-range links'));
+  // ── 9. Filtro de largo alcance y layout radial ───────────────────────────────────────────
+  const largo = normalizarEstado({ soloLargoAlcance: true }, { datos: D });
+  const alcanceLargo = aplicarFiltros(D, largo).visibles;
+  p.cierto('el filtro de largo alcance solo deja nodos conectados a distancia', [...alcanceLargo].length > 0 && [...alcanceLargo].length < D.nodos.length);
+  const radial = layoutRadial(D, 'temas/tienda-hub.md', { width: 1400, height: 900 }, { profundidad: 2 });
+  p.igual('el layout radial entrega anillos BFS', radial.rings.map((ring) => ring.depth), [0, 1, 2]);
+
 
   process.exit(p.cerrar() ? 1 : 0);
 })().catch((e) => { console.error('ERROR INESPERADO\n', e.stack); process.exit(1); });

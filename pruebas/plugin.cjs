@@ -6,7 +6,7 @@
 const { cargarPlugin, vaultSimulado, pruebas, el } = require('./simulado.cjs');
 
 const { Plugin, interno, filas: filasUI } = cargarPlugin(process.argv[2]);
-const { construir, VistaMapa, AjustesMapa, AJUSTES_BASE, enlacesDe, detectarCarpetas, PROVEEDORES, CLAVE_IA } = interno;
+const { construir, VistaMapa, AjustesMapa, AJUSTES_BASE, enlacesDe, detectarCarpetas, PROVEEDORES, CLAVE_IA, aplicarFiltros, rutaMasCorta, diagnosticos, vacios, layoutCapas, layoutRadial } = interno;
 const p = pruebas('plugin');
 
 // ── El vault de prueba: 3 capas, 2 temas, un enlace con motivo y otro sin él ──────────────────
@@ -74,24 +74,17 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
 
   // ── 4. La vista: dibuja, ordena, encuentra caminos y vacíos ──────────────────────────────────
   const { el, contexto2D } = require('./simulado.cjs');
-  const v = new VistaMapa({}, { ajustes: AJUSTES, tieneIA: () => false, app });
+  const v = new VistaMapa({}, { ajustes: AJUSTES, tieneIA: () => false, app, store: { rebuild: construir } });
   v.app = app; v.contentEl = el(); v.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-  v.ctx = v.lienzo.getContext(); v.marca = el(); v.chips = el(); v.estado = el(); v.panel = el(); v.guia = el();
-  v.D = D; v.plugin.construir = null;
-  await v.recargar();
-  p.igual('deja todas las notas visibles en un vault chico', v.N.filter((n) => !n.oculto).length, 6);
-  v.dibujar();
-  p.cierto('dibuja en el lienzo', v.ctx.llamadas > 50);
-  const ruta = v.rutaMasCorta('diario/2026-01-02.md', 'temas/tema-equipo.md');
+  v.ctx = v.lienzo.getContext(); v.datos = D; await v.recargar(D);
+  const visibles = aplicarFiltros(D, v.getState()).visibles;
+  p.igual('deja todas las notas visibles en un vault chico', visibles.size, 6);
+  const ruta = rutaMasCorta(D, 'diario/2026-01-02.md', 'temas/tema-equipo.md');
   p.cierto('encuentra un camino entre dos notas lejanas', Array.isArray(ruta) && ruta.length >= 3);
   p.cierto('el camino no pasa por la capa de entrada', (ruta || []).slice(1).every((id) => porId[id].capa !== 0));
-  p.cierto('el modo salud detecta el enlace sin motivo', v.problemas(porId['diario/2026-01-02.md']).some((x) => /reason|motivo/i.test(x)));
-  v.radial = true; v.foco = 'personas/ana-soto.md'; v.medir();
-  p.cierto('la vista radial arma anillos', (v.anillos || []).length >= 2);
-  v.radial = false; v.medir();
-  p.cierto('calcular vacíos no falla', Array.isArray(v.calcularVacios()));
-  v.cerrada = true; v.pedir();
-  p.cierto('cerrada, no vuelve a dibujar', true);
+  p.cierto('el modo salud detecta el enlace sin motivo', diagnosticos(D).some((d) => d.tipo === 'sin-motivo' && d.nodos.includes('diario/2026-01-02.md')));
+  p.cierto('el layout radial arma anillos', layoutRadial(D, 'personas/ana-soto.md', { width: 1400, height: 900 }, { profundidad: 2 }).rings.length >= 2);
+  p.cierto('calcular vacíos no falla', Array.isArray(vacios(D)));
 
   // ── 5. Escritura en las notas: solo lo prometido ─────────────────────────────────────────────
   const pl2 = new Plugin(); pl2.app = app; await pl2.onload();

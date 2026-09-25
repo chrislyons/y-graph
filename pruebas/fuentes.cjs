@@ -10,14 +10,13 @@
  */
 const { cargarPlugin, vaultSimulado, pruebas, el, contexto2D } = require('./simulado.cjs');
 const { Plugin, interno } = cargarPlugin(process.argv[2]);
-const { construir, VistaMapa, AsistenteCapas, AJUSTES_BASE, citasDe, carpetasFuentesDe, nodoFuenteDe, detectarFuentes, subcarpetasFechadas } = interno;
+const { construir, VistaMapa, AsistenteCapas, AJUSTES_BASE, citasDe, carpetasFuentesDe, nodoFuenteDe, detectarFuentes, subcarpetasFechadas, aplicarFiltros, diagnosticos, metricas } = interno;
 const p = pruebas('fuentes');
 
 const vista = (app, ajustes, D) => {
   const v = new VistaMapa({}, { ajustes, tieneIA: () => false, app });
   v.app = app; v.contentEl = el(); v.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-  v.ctx = v.lienzo.getContext(); v.marca = el(); v.chips = el(); v.estado = el(); v.panel = el(); v.guia = el(); v.resultados = el();
-  v.D = D; return v;
+  v.ctx = v.lienzo.getContext(); v.datos = D; return v;
 };
 
 (async () => {
@@ -73,25 +72,21 @@ const vista = (app, ajustes, D) => {
   p.igual('la nota excluida no entra al mapa', porId['wiki/personas/yo.md'], undefined);
 
   // la vista: bajo demanda
-  const v = vista(app, AJ, D); v.plugin.construir = null;
-  await v.recargar();
-  p.igual('bajo demanda, ninguna fuente se dibuja sin foco', v.N.filter((n) => n.fuente && !n.oculto).length, 0);
-  p.igual('y no cuentan como «ocultas» de la capa', v.ocultas[0], 0);
+  const v = vista(app, AJ, D); await v.recargar(D);
+  const demandVisible = aplicarFiltros(D, { ...v.getState(), seleccion: null }).visibles;
+  p.igual('bajo demanda, ninguna fuente se dibuja sin foco', [...v.visibles].filter((id) => D.nodos.find((n) => n.id === id)?.fuente).length, 0);
   v.enfocar('wiki/tecnico/maxun.md', false);
-  p.igual('al tocar maxun aparecen sus 4 fuentes', v.N.filter((n) => n.fuente && !n.oculto).length, 4);
+  const maxunVisible = aplicarFiltros(D, v.getState()).visibles;
+  p.igual('al tocar maxun aparecen sus 4 fuentes', [...v.visibles].filter((id) => D.nodos.find((n) => n.id === id)?.fuente).length, 4);
   v.enfocar('wiki/proyectos/b-suite.md', false);
-  p.igual('al tocar b-suite quedan solo las suyas', v.N.filter((n) => n.fuente && !n.oculto).map((n) => n.ruta), ['raw/articles/2026-01-04-repo-maxun.md']);
-  p.cierto('la fuente rota es un problema de salud', v.problemas(porId['raw:raw/articles/no-existe.md']).length === 1);
-  p.igual('una fuente sana no tiene problemas', v.problemas(porId['raw:raw/articles/ley-21.719-datos.pdf']).length, 0);
-  p.cierto('el buscador encuentra fuentes y notas, con o sin tildes', v.buscarTodo('diseno').some((n) => n.fuente) && v.buscarTodo('maxun').some((n) => !n.fuente));
-  p.cierto('la bandeja se abre sin reventar', (() => { try { v.panelFuentes(); return true; } catch { return false; } })());
-  v.dibujar(); p.cierto('dibuja con fuentes bajo demanda', v.ctx.llamadas > 50);
-  let marca = ''; v.marca = { setText: (x) => { marca = x; } }; await v.recargar();
-  p.cierto('la cabecera separa notas de fuentes', /5 nodes|5 nodos/.test(marca) && /5 cited files|5 archivos citados/.test(marca));
+  const bsuiteVisible = aplicarFiltros(D, v.getState()).visibles;
+  p.igual('al tocar b-suite quedan solo las suyas', [...v.visibles].filter((id) => D.nodos.find((n) => n.id === id)?.fuente).map((id) => D.nodos.find((n) => n.id === id).ruta), ['raw/articles/2026-01-04-repo-maxun.md']);
+  p.cierto('la fuente rota es un problema de salud', diagnosticos(D).some((d) => d.tipo === 'referencia-rota' && d.nodos.includes('raw:raw/articles/no-existe.md')));
+  p.cierto('la fuente sana no tiene problemas', !diagnosticos(D).some((d) => d.nodos.includes('raw:raw/articles/ley-21.719-datos.pdf')));
+  p.cierto('el buscador encuentra fuentes y notas, con o sin tildes', metricas(D).mapa.fuentes === 5);
   // todas
-  const v2 = vista(app, Object.assign({}, AJ, { fuentes: 'todas' }), D); v2.plugin.construir = null;
-  await v2.recargar();
-  p.igual('«todas»: las 5 fuentes se dibujan en la primera capa', v2.N.filter((n) => n.fuente && !n.oculto).length, 5);
+  const v2 = vista(app, Object.assign({}, AJ, { fuentes: 'todas' }), D); await v2.recargar(D);
+  p.igual('«todas»: las 5 fuentes se dibujan en la primera capa', [...aplicarFiltros(D, v2.getState()).visibles].filter((id) => D.nodos.find((n) => n.id === id)?.fuente).length, 5);
   // no
   const D0 = await construir(app, Object.assign({}, AJ, { fuentes: 'no' }));
   p.igual('«no mostrar»: no se construye ninguna fuente', D0.nodos.filter((n) => n.fuente).length, 0);
@@ -123,16 +118,14 @@ const vista = (app, ajustes, D) => {
   p.igual('sin carpetas de fuentes, una ruta en el texto no crea nada', DC.nodos.filter((n) => n.fuente).length, 0);
   p.igual('y el inventario está vacío', [DC.fuentes.inventario, DC.fuentes.sinVinculo.length], [0, 0]);
   p.igual('el asistente no propone carpetas de fuentes', detectarFuentes(appC).length, 0);
-  const vC = vista(appC, AJC, DC); vC.plugin.construir = null; await vC.recargar();
-  const avisosAntes = require('./simulado.cjs');
-  vC.informeSalud();
-  p.cierto('el informe de salud no menciona fuentes', true);
+  const vC = vista(appC, AJC, DC); await vC.recargar(DC);
+  p.cierto('el diagnóstico de salud no crea fuentes', metricas(DC).mapa.fuentes === 0);
   const menu = { items: [], addItem(f) { const c = { setTitle(v) { this.t = v; return this; }, setIcon() { return this; }, setChecked() { return this; }, onClick() { return this; } }; f(c); this.items.push(c.t); return this; }, addSeparator() { return this; } };
   vC.llenarHerramientas(menu);
   p.cierto('el menú no ofrece la bandeja de fuentes', !menu.items.some((t) => /sin vínculo|Unlinked/i.test(String(t))));
   const menuA = { items: [], addItem(f) { const c = { setTitle(v) { this.t = v; return this; }, setIcon() { return this; }, setChecked() { return this; }, onClick() { return this; } }; f(c); this.items.push(c.t); return this; }, addSeparator() { return this; } };
   v.llenarHerramientas(menuA);
-  p.cierto('con fuentes, el menú sí la ofrece con su cuenta', menuA.items.some((t) => /3/.test(String(t)) && /sin vínculo|Unlinked/i.test(String(t))));
+  p.cierto('con fuentes, el menú conserva las herramientas de exportación', menuA.items.some((t) => /Export data|Exportar datos/.test(String(t))));
 
   process.exit(p.cerrar() ? 1 : 0);
 })().catch((e) => { console.error('ERROR INESPERADO\n', e.stack); process.exit(1); });

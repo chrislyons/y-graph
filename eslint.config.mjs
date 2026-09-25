@@ -13,7 +13,7 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser },
       parserOptions: {
-        projectService: { allowDefaultProject: ['eslint.config.*', 'src/*.js'] },
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },

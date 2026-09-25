@@ -5,10 +5,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 [ -x "$CHROME" ] || { echo "No encuentro Chrome. Exporta CHROME=/ruta/a/chrome"; exit 1; }
-[ -f ../../main.js ] || { echo "Falta main.js: corre npm run build"; exit 1; }
-cp ../../main.js main.js
 cp ../../styles.css styles.css
-printf '\nwindow.__VistaMapa = VistaMapa; window.__AjustesMapa = AjustesMapa; window.__AJUSTES_BASE = AJUSTES_BASE;\n' >> main.js
 node -e "const fs=require('fs');fs.writeFileSync('vault.js','window.__VAULT = '+fs.readFileSync('vault.json','utf8')+';')"
 
 tomar() {
@@ -37,5 +34,5 @@ for f in sorted(pathlib.Path('.').glob('0*.png')):
     print(f'  {salida.name}: {salida.stat().st_size // 1024} KB')
     f.unlink()
 PY
-rm -f main.js styles.css vault.js
+rm -f styles.css vault.js
 echo "Listas en docs/imagenes/."
