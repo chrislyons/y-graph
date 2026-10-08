@@ -218,16 +218,20 @@ const CAPAS_ESTANDAR = [
   ['Temas', 'síntesis y mapas de contenido'],
 ];
 const PISTAS = [
-  [0, ['daily', 'diario', 'diarias', 'journal', 'inbox', 'bandeja', 'fuente', 'source', 'clipping', 'raw', 'captura', 'periodic', 'reunion', 'meeting', 'log', 'bitacora']],
+  [0, ['daily', 'diario', 'diarias', 'journal', 'inbox', 'bandeja', 'fuente', 'source', 'clipping', 'recorte', 'raw', 'captura', 'periodic', 'reunion', 'meeting', 'log', 'bitacora']],
   [1, ['people', 'persona', 'contact', 'client', 'cliente', 'project', 'proyecto', 'compan', 'empresa', 'entidad', 'entit', 'org']],
   [3, ['topic', 'tema', 'moc', 'map', 'indice', 'index', 'area', 'hub']],
   [-1, ['template', 'plantilla', 'attachment', 'adjunto', 'asset', 'archive', 'archivo', 'excalidraw', 'trash', 'papelera']],
 ];
+// Lo que nunca va al mapa, con cualquier plantilla.
+const PISTAS_OCULTAS = PISTAS[PISTAS.length - 1];
 function sinAcentos(t) { return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
-function sugerirCapa(nombre) {
+// [1.32] Cada plantilla trae sus propias pistas y su capa por defecto para la raíz: con ellas,
+// elegir una plantilla reparte las carpetas por su nombre en vez de solo renombrar las columnas.
+function sugerirCapa(nombre, pistas = PISTAS, porDefecto = 2) {
   const n = sinAcentos(nombre.split('/').pop());
-  for (const [capa, claves] of PISTAS) if (claves.some((k) => n.includes(k))) return capa;
-  return 2;
+  for (const [capa, claves] of [PISTAS_OCULTAS, ...pistas]) if (claves.some((k) => n.includes(k))) return capa;
+  return porDefecto;
 }
 function detectarCarpetas(app) {
   const archivos = app.vault.getMarkdownFiles(), total = archivos.length || 1, top = {}, sub = {};
@@ -265,13 +269,31 @@ function subcarpetasFechadas(app, carpeta) {
 function esLlmWiki(app) {
   return !!(app.vault.getFileByPath('index.md') && app.vault.getFileByPath('log.md'));
 }
-// Plantillas de capas por tipo de vault. La primera es la de siempre (CAPAS_ESTANDAR); la
-// profesional salió de un vault jurídico-contable real que un usuario armó a mano con cinco capas.
+// Plantillas de capas por tipo de vault: [id, nombre, capas, pistas, capa por defecto]. Las pistas
+// reparten las carpetas por su nombre al elegir la plantilla: sin ellas, cambiar de plantilla solo
+// renombraba columnas y las carpetas quedaban donde estaban. La primera es la de siempre; la
+// profesional salió de un vault real de normas y servicios (jurídico-contable) armado en cinco capas;
+// la de negocio, de separar clientes y proyectos de ventas y operación.
 const PLANTILLAS = [
-  ['llm', 'LLM wiki', CAPAS_ESTANDAR],
-  ['profesional', 'Profesional (jurídico, contable)', [['Conceptos', 'definiciones canónicas'], ['Entidades', 'quién dicta, fiscaliza, autoriza'], ['Fuentes', 'leyes, circulares, manuales'], ['Aplicación', 'guías, servicios, proyectos'], ['Temas', 'hubs de dominio']]],
-  ['academico', 'Académico', [['Lecturas', 'papers y libros'], ['Notas de lectura', 'lo que subrayaste'], ['Conceptos', 'ideas con nombre propio'], ['Síntesis', 'ensayos y revisiones']]],
-  ['zettel', 'Zettelkasten', [['Fugaces', 'capturas rápidas'], ['Literatura', 'notas de lo leído'], ['Permanentes', 'ideas propias, una por nota'], ['Estructura', 'índices y mapas']]],
+  ['llm', 'LLM wiki', CAPAS_ESTANDAR, PISTAS.slice(0, -1), 2],
+  ['negocio', 'Negocio', [['Entrada', 'reuniones, notas del día y capturas'], ['Clientes y proyectos', 'con quién y en qué trabajas'], ['Ventas y operación', 'ofertas, pipeline, procesos'], ['Aprendizajes', 'lo técnico y lo que funcionó'], ['Temas', 'síntesis y mapas']],
+    [[0, ['daily', 'diario', 'diarias', 'journal', 'inbox', 'bandeja', 'reunion', 'meeting', 'captura', 'clipping', 'recorte', 'fuente', 'source', 'raw', 'log', 'bitacora']],
+      [1, ['client', 'cliente', 'project', 'proyecto', 'people', 'persona', 'contact', 'empresa', 'compan', 'cuenta', 'account']],
+      [2, ['venta', 'sale', 'comercial', 'negocio', 'business', 'pipeline', 'cotiza', 'oferta', 'operac', 'finanz', 'factura', 'marketing', 'crm']],
+      [4, ['tema', 'topic', 'moc', 'map', 'indice', 'index', 'hub']]], 3],
+  ['profesional', 'Profesional (normas y servicios)', [['Conceptos', 'definiciones canónicas'], ['Entidades', 'quién dicta, fiscaliza, autoriza'], ['Fuentes', 'leyes, circulares, manuales'], ['Aplicación', 'guías, servicios, proyectos'], ['Temas', 'hubs de dominio']],
+    [[0, ['concept', 'definic', 'glosario', 'glossary', 'termino']],
+      [1, ['entidad', 'entit', 'organismo', 'institucion', 'empresa', 'client', 'persona', 'org']],
+      [2, ['ley', 'norma', 'circular', 'manual', 'reglament', 'fuente', 'source', 'law']],
+      [4, ['tema', 'topic', 'moc', 'map', 'indice', 'index', 'hub']]], 3],
+  ['academico', 'Académico', [['Lecturas', 'papers y libros'], ['Notas de lectura', 'lo que subrayaste'], ['Conceptos', 'ideas con nombre propio'], ['Síntesis', 'ensayos y revisiones']],
+    [[0, ['paper', 'libro', 'book', 'lectura', 'reading', 'articul', 'article', 'fuente', 'source', 'raw', 'clipping']],
+      [1, ['subray', 'highlight', 'literat', 'annot', 'anotac']],
+      [3, ['sintesis', 'synthesis', 'ensayo', 'essay', 'review', 'tema', 'topic', 'moc', 'map', 'index', 'indice']]], 2],
+  ['zettel', 'Zettelkasten', [['Fugaces', 'capturas rápidas'], ['Literatura', 'notas de lo leído'], ['Permanentes', 'ideas propias, una por nota'], ['Estructura', 'índices y mapas']],
+    [[0, ['fleeting', 'fugaz', 'fugace', 'inbox', 'bandeja', 'daily', 'diario', 'captura']],
+      [1, ['literat', 'lectura', 'reading', 'fuente', 'source', 'clipping']],
+      [3, ['structure', 'estructura', 'moc', 'map', 'index', 'indice', 'hub', 'tema', 'topic']]], 2],
 ];
 // Las capas que el usuario ya tiene, como plantilla «actual»: así el asistente sirve también
 // como editor permanente y no solo para el primer uso. Los nombres son suyos: no se traducen.
@@ -286,7 +308,7 @@ class AsistenteCapas extends Modal {
   onOpen() {
     const { contentEl: c } = this; c.empty(); c.addClass('mn-asistente');
     this.setTitle(T('Organiza tu mapa en capas'));
-    c.createEl('p', { text: T('El mapa ordena tus notas de izquierda a derecha, de lo que entra a lo que se sintetiza. Revisa en qué capa va cada carpeta; ya propusimos una según su nombre.') });
+    c.createEl('p', { text: T('El mapa va de izquierda a derecha: de lo que entra a lo que se sintetiza. Revisa la capa de cada carpeta; ya propusimos una.') });
     const filas = detectarCarpetas(this.app);
     if (!filas.length) { c.createEl('p', { text: T('Tu vault todavía no tiene notas.') }); return; }
     // Carpetas de fuentes: se proponen las que tienen archivos que no son notas (PDF, capturas) o
@@ -320,14 +342,35 @@ class AsistenteCapas extends Modal {
       c.createEl('p', { cls: 'setting-item-description', text: T('La capa actual de cada carpeta ya viene marcada.') });
     }
     const capasDe = () => plantillas.find((p) => p[0] === this.plantilla)[2];
-    new Setting(c).setName(T('Plantilla de capas')).addDropdown((d) => {
+    // [1.32] Elegir una plantilla reparte de nuevo las carpetas según sus pistas; volver a «Mis
+    // capas actuales» devuelve cada carpeta a donde estaba. Las fuentes y lo que estaba en «No
+    // mostrar» no se tocan: son decisiones de la persona, no de una plantilla.
+    const originales = new Map(filas.map((f) => [f.carpeta, f.capa]));
+    const repartir = () => {
+      const pl = plantillas.find((p) => p[0] === this.plantilla);
+      for (const f of filas) {
+        if (f.capa === -2 || f.archivos || originales.get(f.carpeta) === -1) continue;
+        f.capa = this.plantilla === 'actual' ? originales.get(f.carpeta) : f.carpeta === '/' ? pl[4] : sugerirCapa(f.carpeta, pl[3], pl[4]);
+      }
+    };
+    new Setting(c).setName(T('Plantilla de capas')).setDesc(T('Al elegir una, las carpetas se reparten según su nombre. Revisa y corrige antes de aplicar.')).addDropdown((d) => {
       d.addOptions(Object.fromEntries(plantillas.map(([id, nombre, capas]) => [id, nombre ? T(nombre) : T('Mis capas actuales') + ': ' + capas.map((x) => x[0]).join(' → ')]))).setValue(this.plantilla)
-        .onChange((v) => { this.plantilla = v; const n = capasDe().length; for (const f of filas) if (f.capa >= n) f.capa = n - 1; pintarFilas(); });
+        .onChange((v) => { this.plantilla = v; repartir(); pintarFilas(); });
     });
     const cuerpo = c.createDiv();
     const pintarFilas = () => {
       cuerpo.empty();
       const capas = capasDe(), traducir = this.plantilla !== 'actual';
+      // Qué es cada capa (pedido en el issue #20): el nombre solo no alcanza para decidir.
+      const leyenda = cuerpo.createEl('details', { cls: 'mn-asistente-leyenda' });
+      leyenda.createEl('summary', { text: T('Qué significa cada capa') });
+      capas.forEach(([nombre, desc], i) => {
+        const l = leyenda.createDiv({ cls: 'setting-item-description' });
+        l.createEl('strong', { text: `L${i} · ${traducir ? T(nombre) : nombre}` });
+        if (desc) l.appendText(` — ${traducir ? T(desc) : desc}`);
+      });
+      leyenda.createDiv({ cls: 'setting-item-description', text: T('Fuentes citadas por ruta: archivos que tus notas citan (PDF, capturas, notas crudas). No son una capa: aparecen junto a la nota que los cita.') });
+      leyenda.createDiv({ cls: 'setting-item-description', text: T('No mostrar: la carpeta queda fuera del mapa. Si una carpeta está dentro de otra, gana la más específica.') });
       const opciones = Object.fromEntries(capas.map((x, i) => [String(i), traducir ? T(x[0]) : x[0]]));
       opciones['-2'] = T('Fuentes citadas por ruta'); opciones['-1'] = T('No mostrar');
       for (const fila of filas) {
@@ -345,7 +388,7 @@ class AsistenteCapas extends Modal {
     const usadas = [...new Set(filas.filter((f) => f.capa >= 0).map((f) => f.capa))].sort((a, b) => a - b);
     if (!usadas.length) { new Notice(T('Elige al menos una carpeta para mostrar')); return; }
     const indice = Object.fromEntries(usadas.map((capa, i) => [capa, i]));
-    const aj = this.plugin.ajustes;
+    const aj = this.plugin.ajustes, antes = [aj.capas, aj.carpetas, aj.carpetasFuentes].join('\u0000');
     aj.capas = usadas.map((capa) => capasPlantilla[capa].map((x) => (traducir ? T(x) : x)).join(' | ')).join('\n');
     aj.carpetas = filas.filter((f) => f.capa >= 0).map((f) => `${f.carpeta} = ${indice[f.capa]}`).join('\n');
     const fuentes = filas.filter((f) => f.capa === -2);
@@ -353,6 +396,8 @@ class AsistenteCapas extends Modal {
     aj.configurado = true;
     await this.plugin.guardar();
     this.close();
+    // Sin este aviso, aplicar lo mismo que ya había parecía no hacer nada.
+    if ([aj.capas, aj.carpetas, aj.carpetasFuentes].join('\u0000') === antes) { new Notice(T('Sin cambios: tu mapa ya tenía estas capas.')); return; }
     this.plugin.refrescarVistas();
     new Notice(T('Capas aplicadas. Puedes ajustarlas en la configuración del plugin.'));
   }

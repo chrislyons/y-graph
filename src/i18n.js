@@ -5,8 +5,8 @@ import { getLanguage } from 'obsidian';
 const EN = {
   // asistente de capas
   'Organiza tu mapa en capas': 'Organize your map in layers',
-  'El mapa ordena tus notas de izquierda a derecha, de lo que entra a lo que se sintetiza. Revisa en qué capa va cada carpeta; ya propusimos una según su nombre.':
-    'The map lays your notes out from left to right, from what comes in to what it adds up to. Check which layer each folder belongs to; we already proposed one from its name.',
+  'El mapa va de izquierda a derecha: de lo que entra a lo que se sintetiza. Revisa la capa de cada carpeta; ya propusimos una.':
+    'The map runs left to right: from what comes in to what gets synthesized. Check each folder\'s layer; we already suggested one.',
   'Tu vault todavía no tiene notas.': 'Your vault has no notes yet.',
   'No mostrar': "Don't show",
   'Notas en la raíz del vault': 'Notes in the vault root',
@@ -260,8 +260,24 @@ const EN = {
   'Ajustes recargados desde data.json': 'Settings reloaded from data.json',
   'Solo enlaces de largo alcance': 'Only long-range links',
   'Plantilla de capas': 'Layer template',
+  'Al elegir una, las carpetas se reparten según su nombre. Revisa y corrige antes de aplicar.': 'Picking one sorts your folders by their names. Check and fix before applying.',
+  'Sin cambios: tu mapa ya tenía estas capas.': 'No changes: your map already had these layers.',
   'LLM wiki': 'LLM wiki',
-  'Profesional (jurídico, contable)': 'Professional (legal, accounting)',
+  'Negocio': 'Business',
+  'reuniones, notas del día y capturas': 'meetings, daily notes and captures',
+  'Clientes y proyectos': 'Clients and projects',
+  'con quién y en qué trabajas': 'who you work with and on what',
+  'Ventas y operación': 'Sales and operations',
+  'ofertas, pipeline, procesos': 'offers, pipeline, processes',
+  'Aprendizajes': 'Learnings',
+  'lo técnico y lo que funcionó': 'the technical side and what worked',
+  'síntesis y mapas': 'syntheses and maps',
+  'Profesional (normas y servicios)': 'Professional (rules and services)',
+  'Qué significa cada capa': 'What each layer means',
+  'Fuentes citadas por ruta: archivos que tus notas citan (PDF, capturas, notas crudas). No son una capa: aparecen junto a la nota que los cita.':
+    'Sources cited by path: files your notes cite (PDFs, screenshots, raw notes). They are not a layer: they show up next to the note that cites them.',
+  'No mostrar: la carpeta queda fuera del mapa. Si una carpeta está dentro de otra, gana la más específica.':
+    "Don't show: the folder stays off the map. When one folder is inside another, the more specific one wins.",
   'Académico': 'Academic',
   'Zettelkasten': 'Zettelkasten',
   'Conceptos': 'Concepts',

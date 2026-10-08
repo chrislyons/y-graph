@@ -183,7 +183,7 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.igual('con el enlace largo, a0 baja bajo b0', con.indexOf('a0') > con.indexOf('b0'), true);
 
   // ── 8. Plantillas y asistente con config existente ───────────────────────────────────────────
-  p.igual('hay cuatro plantillas', PLANTILLAS.length, 4);
+  p.igual('hay cinco plantillas, con la de negocio', PLANTILLAS.map((x) => x[0]).join(','), 'llm,negocio,profesional,academico,zettel');
   p.cierto('la primera es la de siempre', PLANTILLAS[0][2] === CAPAS_ESTANDAR);
   p.igual('la profesional tiene cinco capas', PLANTILLAS.find((x) => x[0] === 'profesional')[2].length, 5);
   p.igual('sin carpetas no hay plantilla actual', plantillaActual(Object.assign({}, AJUSTES_BASE, { carpetas: '' })), null);
@@ -206,6 +206,25 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   ajustesUI.length = 0; new AsistenteCapas(app, pl4).onOpen();
   p.igual('sin config, la plantilla arranca en LLM wiki', fila('Layer template'), 'llm');
   p.igual('sin config, temas va donde sugiere el nombre', fila('temas'), '3');
+  // Elegir otra plantilla reparte las carpetas por nombre; volver a «actual» las devuelve.
+  const pl5 = new Plugin(); pl5.app = app; await pl5.onload(); pl5.ajustes = Object.assign({}, AJUSTES);
+  ajustesUI.length = 0; const as5 = new AsistenteCapas(app, pl5); as5.onOpen();
+  const menuPlantilla = () => ajustesUI.find((x) => x.nombre === 'Layer template').campos[0];
+  const ultima = (nombre) => ([...ajustesUI].reverse().find((x) => x.nombre === nombre) || {}).campos?.[0]?.valor;
+  menuPlantilla().alCambiar('negocio');
+  p.igual('con «negocio», proyectos va a clientes y proyectos (1)', ultima('proyectos'), '1');
+  p.igual('con «negocio», temas va a la última capa (4)', ultima('temas'), '4');
+  p.igual('con «negocio», diario va a la entrada (0)', ultima('diario'), '0');
+  p.igual('las fuentes no se tocan', ultima('raw'), '-2');
+  p.igual('lo que estaba en «no mostrar» sigue oculto', ultima('suelto'), '-1');
+  menuPlantilla().alCambiar('actual');
+  p.igual('volver a «actual» devuelve cada carpeta a su capa', `${ultima('temas')},${ultima('ideas')},${ultima('suelto')}`, '3,2,-1');
+  // Aplicar lo mismo que ya había avisa que no cambió nada, en vez de quedarse mudo.
+  const pl6 = new Plugin(); pl6.app = app; await pl6.onload();
+  pl6.ajustes = Object.assign({}, AJUSTES_BASE, { capas: 'Entrada | a\nTemas | b', carpetas: 'diario = 0\ntemas = 1', carpetasFuentes: '' });
+  const avisos0 = avisos.length;
+  await new AsistenteCapas(app, pl6).aplicar([{ carpeta: 'diario', capa: 0 }, { carpeta: 'temas', capa: 1 }], [['Entrada', 'a'], ['Temas', 'b']], false);
+  p.cierto('aplicar sin cambios lo dice', /No changes/.test(avisos.slice(avisos0).join(' ')), avisos.slice(avisos0));
 
   // ── 9. Filtro de largo alcance y layout radial ───────────────────────────────────────────
   const largo = normalizarEstado({ soloLargoAlcance: true }, { datos: D });
