@@ -38,7 +38,9 @@ import {
   vecindades,
   rutaMasCorta,
   vacios,
+  candidatasPerspectiva,
 } from './model/analysis.js';
+import { indiceTfidf, parecidosA, tsne, distanciasTfidf, tokensDe } from './model/similarity.js';
 import { layoutCapas, layoutRadial } from './view/layouts.js';
 import { GraphRenderer } from './view/renderer.js';
 import { renderTablaGrafo } from './view/table.js';
@@ -97,6 +99,12 @@ const testApi = {
   vecindades,
   rutaMasCorta,
   vacios,
+  candidatasPerspectiva,
+  indiceTfidf,
+  parecidosA,
+  tsne,
+  distanciasTfidf,
+  tokensDe,
   layoutCapas,
   layoutRadial,
   GraphRenderer,
@@ -161,6 +169,12 @@ export {
   vecindades,
   rutaMasCorta,
   vacios,
+  candidatasPerspectiva,
+  indiceTfidf,
+  parecidosA,
+  tsne,
+  distanciasTfidf,
+  tokensDe,
   layoutCapas,
   layoutRadial,
   GraphRenderer,

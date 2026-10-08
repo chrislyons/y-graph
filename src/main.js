@@ -1064,6 +1064,8 @@ class AjustesMapa extends PluginSettingTab {
     this.pintarIA(c);
     new Setting(c).setName(T('Segunda revisión')).setDesc(T('Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.'))
       .addToggle((t) => t.setValue(p.ajustes.dobleVerificacion).onChange(async (v) => { p.ajustes.dobleVerificacion = v; await p.guardar(); }));
+    new Setting(c).setName(T('Voto en la segunda revisión')).setDesc(T('Si la segunda revisión rechaza un motivo, dos revisores más miran sin conocer ese veredicto y decide la mayoría. Cuesta hasta dos llamadas extra, solo cuando hay rechazo. Puede aprobar motivos que antes se bloqueaban.'))
+      .addToggle((t) => t.setValue(!!p.ajustes.votoRevision).onChange(async (v) => { p.ajustes.votoRevision = v; await p.guardar(); }));
     new Setting(c).setName(T('Carpeta del registro de aprobaciones')).setDesc(T('Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.'))
       .addText((t) => t.setValue(p.ajustes.carpetaAuditoria).onChange(async (v) => { p.ajustes.carpetaAuditoria = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Novedades')).setHeading();
@@ -1238,6 +1240,7 @@ class AjustesMapa extends PluginSettingTab {
         render: (setting) => { const el = setting?.settingEl; if (!el) return; el.empty(); el.addClass('mn-ajuste-ia'); this.pintarIA(el); } },
       { type: 'group', items: [
         interruptor('Segunda revisión', 'Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.', 'dobleVerificacion'),
+        interruptor('Voto en la segunda revisión', 'Si la segunda revisión rechaza un motivo, dos revisores más miran sin conocer ese veredicto y decide la mayoría. Cuesta hasta dos llamadas extra, solo cuando hay rechazo. Puede aprobar motivos que antes se bloqueaban.', 'votoRevision'),
         texto('Carpeta del registro de aprobaciones', 'Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.', 'carpetaAuditoria'),
       ] },
       { type: 'group', heading: T('Novedades'), items: [
@@ -1549,6 +1552,14 @@ export default class MapaNeuronal extends Plugin {
       const sistema2 = 'Eres un revisor escéptico. Decides si un motivo de enlace es FIEL a dos notas. Es infiel si: afirma algo que las notas no dicen; convierte un pendiente, idea o posibilidad en un hecho; ignora una negación; atribuye algo a la nota equivocada; o describe otra relación distinta de la que el texto establece. Si hay cualquier duda, fiel=false.';
       const usuario2 = `<origen>\n${origen}\n</origen>\n\n<destino>\n${destino}\n</destino>\n\nEnlace: ${fr.nuevo ? 'nuevo, todavía no existe' : `línea ${fr.linea} de la nota de origen`}, hacia [[${nombre(fr.destino)}]].\nMotivo propuesto: "${res.motivo}"\nCitas: origen «${g.cita_origen}» · destino «${g.cita_destino}»\n\n¿Es fiel? Si no, explica el problema en una frase; si es fiel, problema="".`;
       res.revision = await this.llamarIA(sistema2, usuario2, esquema2);
+      // Voto (opcional, apagado por defecto): si el revisor dice «infiel», dos revisores más miran la
+      // misma pregunta sin saber el veredicto anterior y manda la mayoría. Solo se llama con desacuerdo.
+      if (!res.revision.fiel && this.ajustes.votoRevision) {
+        const otros = [];
+        for (let i = 0; i < 2; i++) otros.push(await this.llamarIA(sistema2, usuario2, esquema2).catch(() => null));
+        const votos = [res.revision, ...otros.filter(Boolean)], fieles = votos.filter((v) => v.fiel).length;
+        res.revision = { fiel: fieles * 2 > votos.length, problema: (votos.find((v) => !v.fiel) || {}).problema || '', votos: { fieles, total: votos.length } };
+      }
       res.aprobable = !!res.revision.fiel;
     } else res.aprobable = true;
     return res;

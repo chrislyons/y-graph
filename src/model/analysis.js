@@ -354,3 +354,20 @@ export function vacios(datos) {
   }
   return resultado.sort((a, b) => b.faltan - a.faltan || compararIds(a.ti, b.ti) || compararIds(a.tj, b.tj)).slice(0, 6);
 }
+
+/**
+ * Revisión con perspectiva (1.35): notas propias de más de 90 días que tienen vecinas más nuevas
+ * (≥ 30 días después). Orden: más vecinas nuevas primero. Las que la persona marcó «sigue vigente»
+ * no vuelven antes de 180 días.
+ */
+export function candidatasPerspectiva(nodos, ady, porId, vistas, ahora) {
+  const DIA = 86400000, res = [];
+  for (const n of nodos) {
+    if (!n.propio || n.fuente || n.virtual || !n.ruta || !n.fecha) continue;
+    if (ahora - n.fecha < 90 * DIA) continue;
+    if (vistas[n.ruta] && ahora - vistas[n.ruta] < 180 * DIA) continue;
+    const nuevas = (ady[n.id] || []).map((v) => porId[v]).filter((m) => m && m.propio && !m.fuente && !m.virtual && m.fecha && m.fecha - n.fecha >= 30 * DIA).sort((a, b) => b.fecha - a.fecha);
+    if (nuevas.length) res.push({ nota: n, nuevas });
+  }
+  return res.sort((a, b) => b.nuevas.length - a.nuevas.length || a.nota.fecha - b.nota.fecha);
+}

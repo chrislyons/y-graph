@@ -173,6 +173,9 @@ const EN = {
   'Segunda revisión': 'Second pass',
   'Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.':
     'A second call checks the reason for faithfulness (negations, states, pending items). It costs twice as much and blocks errors of nuance.',
+  'Voto en la segunda revisión': 'Second-review vote',
+  'Si la segunda revisión rechaza un motivo, dos revisores más miran sin conocer ese veredicto y decide la mayoría. Cuesta hasta dos llamadas extra, solo cuando hay rechazo. Puede aprobar motivos que antes se bloqueaban.':
+    'If the second review rejects a reason, two more reviewers look without knowing that verdict and the majority decides. Costs up to two extra calls, only on rejection. It may approve reasons that used to be blocked.',
   'Carpeta del registro de aprobaciones': 'Approval log folder',
   'Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.':
     'Every approved reason is logged (date, quotes, model) in <folder>/<date>/mapa-neuronal-motivos.md.',
