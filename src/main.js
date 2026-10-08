@@ -7,11 +7,22 @@
  *   con precio y solo los que respetan el esquema JSON; Gemini, OpenAI y la IA local con su llave).
  *   ★ marca lo probado con Why Graph; «Otro» deja escribir un modelo que no aparece.
  * v1.33 (25.09.2026): OpenRouter como quinto proveedor: una llave para muchos modelos, con esquema
- *   JSON exigido (provider.require_parameters).
+ *   JSON exigido (provider.require_parameters). Y la auditoría forense del 25.09 sobre el cerebro real —
+ *   · La ingesta sella lo leído al terminar la búsqueda (leído ≠ revisado): cerrar el panel, reiniciar o
+ *     quedarse sin cuota a la mitad ya no deja archivos «por leer» para siempre.
+ *   · El tope diario cuenta cada llamada real (los dos pasos y los reintentos); la cuota diaria de
+ *     Gemini/OpenRouter no se reintenta y se dice cuál es; una respuesta cortada o bloqueada se dice.
+ *   · Los pulsos nunca nacen ni mueren a mitad de curva y nunca se quedan en cero; el buscador acepta
+ *     palabras en cualquier orden, sin tildes, por alias y encuentra lo que no está en el mapa; los
+ *     anillos del radial caben entre la barra y el pie, con su rótulo traducido; las carpetas de fuentes
+ *     anidadas no se cuentan dos veces y un motivo con varios enlaces vale para cada uno.
  * v1.32 (23.09.2026): ajustes en secciones (Mapa, Novedades, página Avanzado plegada) con los
- *   ajustes de ingesta y recortes. Asistente: plantilla «Negocio», «Profesional (normas y
- *   servicios)», elegir una plantilla reparte las carpetas por su nombre (antes solo renombraba
- *   columnas), «Qué significa cada capa» y aplicar sin cambios lo avisa.
+ *   ajustes de ingesta y recortes. Novedades: el material sin procesar se vuelve líneas para el wiki —
+ *   la IA propone con citas verificadas y la persona aprueba página por página (nada se escribe solo);
+ *   comando «ingerir» para revisar lo pendiente; al abrir Obsidian se prepara en segundo plano si se
+ *   activa, con tope diario; los recortes sueltos se ordenan moviendo, nunca editando. Asistente:
+ *   plantilla «Negocio», «Profesional (normas y servicios)», elegir una plantilla reparte las carpetas
+ *   por su nombre (antes solo renombraba columnas), «Qué significa cada capa» y aplicar sin cambios lo avisa.
  * v1.31 (19.09.2026): salud por gravedad (rojo solo lo grave, ámbar el resto); en el teléfono el tope por
  *   capa baja a lo que cabe; ajustes también como definiciones (búsqueda de ajustes de Obsidian 1.13).
  * v1.30 (19.09.2026): la escena se cachea en dos capas fuera de pantalla y cada cuadro de la animación
