@@ -61,6 +61,7 @@ export class WorkbenchToolbar {
     this.metrics.setAttribute('aria-live', 'polite');
     this.searchInput = append(this.primary, element(document, 'input'));
     this.searchInput.type = 'search';
+    setClass(this.searchInput, 'mn-buscar'); // la clase que esperan styles.css (objetivos táctiles) y el mirador
     this.searchInput.setAttribute('aria-label', T('Buscar en el grafo'));
     this.searchInput.setAttribute('placeholder', T('Buscar en el grafo'));
     this._listen(this.searchInput, 'input', () => {

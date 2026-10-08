@@ -219,10 +219,14 @@ window.exports = window.module.exports;
     await new Promise((r) => setTimeout(r, 0));   // el observador marca las filas en la vuelta siguiente
     caja.focus(); caja.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     const activo = document.activeElement;
+    // Contrato del fork: el foco sigue en el input (combobox) y la fila activa vive en
+    // aria-activedescendant; upstream movía el foco real a una fila role=button.
+    const activaId = lista.getAttribute('aria-activedescendant');
+    const activaRow = activaId ? document.getElementById(activaId) : null;
     const pre = document.createElement('pre'); pre.id = 'diag';
     pre.textContent = JSON.stringify({ display: getComputedStyle(lista).display, alto: lista.getBoundingClientRect().height,
       filas: [...lista.querySelectorAll('.mn-resultado')].map((x) => x.textContent),
-      teclado: { rol: activo?.getAttribute('role'), fila: !!activo?.classList.contains('mn-resultado') } });
+      teclado: { rol: (activaRow || activo)?.getAttribute('role'), fila: !!(activaRow && activaRow.classList.contains('mn-resultado')) } });
     document.body.appendChild(pre);
   } else if (q.get('foco')) {
     const n = buscar(q.get('foco'));

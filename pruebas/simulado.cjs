@@ -102,7 +102,7 @@ function vaultSimulado(notas) {
   // La API real trae stat (mtime/ctime): sin él, cualquier código que filtre por fecha —la
   // ingesta— reventaba en la prueba y pasaba en Obsidian, o al revés. mtimes deja fijar fechas.
   const mtimes = {};
-  const conStat = (p) => ({ path: p, name: p.split('/').pop(), basename: base(p), parent: { path: p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '/' }, stat: { mtime: mtimes[p] !== undefined ? mtimes[p] : Date.now(), ctime: 0, size: (notas[p] || '').length } });
+  const conStat = (p) => ({ path: p, name: p.split('/').pop(), basename: base(p), parent: { path: p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '/' }, stat: { get mtime() { if (mtimes[p] === undefined) mtimes[p] = Date.now(); return mtimes[p]; }, ctime: 0, size: (notas[p] || '').length } });
   // Archivos internos del plugin (ingesta.json): van por el adapter, no son notas del vault.
   const internos = {};
   const app = {

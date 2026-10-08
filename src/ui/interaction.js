@@ -119,6 +119,7 @@ export class InteractionController {
     this.searchResults = makeElement(doc, 'ul');
     this.searchResults.setAttribute('role', 'listbox');
     this.searchResults.setAttribute('aria-label', T('Resultados de búsqueda'));
+    this.searchResults.className = 'mn-resultados'; // contrato CSS (display:none + .mostrar) e harness
     this.searchResults.id = 'why-graph-search-' + Math.random().toString(36).slice(2);
     this.searchInput.setAttribute('aria-controls', this.searchResults.id);
     append(this.group || this.parent, this.searchResults);
@@ -359,6 +360,7 @@ export class InteractionController {
     if (!this.searchResults) return;
     clear(this.searchResults);
     this.searchOptions = [];
+    this.searchResults.className = 'mn-resultados' + (this.estado.filtro.trim() ? ' mostrar' : '');
     const q = this.estado.filtro.trim().toLocaleLowerCase();
     const results = q ? this._order.filter((id) => {
       const n = nodesOf(this.datos).find((node) => nodeId(node) === id) || {};
@@ -368,6 +370,7 @@ export class InteractionController {
       const option = makeElement(this.document, 'li');
       const node = nodesOf(this.datos).find((n) => nodeId(n) === id) || {};
       option.id = this.searchResults.id + '-' + id.replace(/[^A-Za-z0-9_-]/g, '-');
+      option.className = 'mn-resultado';
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', 'false');
       option.textContent = value(node.titulo || id);
