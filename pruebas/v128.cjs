@@ -82,11 +82,16 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   {
     const plD = new Plugin(); plD.app = app; plD.ajustes = Object.assign({}, AJUSTES); let guardado = 0; plD.guardar = async () => { guardado++; };
     const tab = new AjustesMapa(app, plD); tab.plugin = plD;
-    const defs = tab.getSettingDefinitions();
+    // Grupos y páginas (1.32) llevan sus ajustes en items: se aplanan para revisarlos todos.
+    const aplanar = (xs) => xs.flatMap((d) => (d.items ? aplanar(d.items) : [d]));
+    const grupos = tab.getSettingDefinitions();
+    const defs = aplanar(grupos);
     const claves = defs.filter((d) => d.control).map((d) => d.control.key);
     p.cierto('las definiciones cubren los ajustes principales', ['capas', 'carpetas', 'propiedadTema', 'fuentes', 'maxPorCapa', 'animacion', 'dobleVerificacion'].every((k) => claves.includes(k)));
     p.cierto('cada definición con control tiene nombre y tipo', defs.filter((d) => d.control).every((d) => d.name && d.control.type));
     p.cierto('la sección de IA va como render', defs.some((d) => typeof d.render === 'function'));
+    p.igual('en cuatro bloques: Mapa, IA (y su control), Novedades y la página Avanzado', grupos.map((g) => g.heading || (g.render ? 'IA' : g.name) || g.type), ['Map', 'IA', 'group', "What's new", 'Advanced']);
+    p.cierto('lo raro va en la página Avanzado', grupos.find((g) => g.type === 'page')?.items.some((d) => d.control?.key === 'excluir'));
     p.igual('lee de plugin.ajustes', tab.getControlValue('capas'), AJUSTES.capas);
     await tab.setControlValue('seccionMotivos', '  '); p.igual('sección vacía vuelve a Conexiones', plD.ajustes.seccionMotivos, 'Conexiones');
     await tab.setControlValue('maxPorCapa', '90'); p.igual('el tope se guarda como número', plD.ajustes.maxPorCapa, 90);
@@ -148,7 +153,7 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
 
   // ── 6. Plugin: comandos y recarga de ajustes ─────────────────────────────────────────────────
   const pl = new Plugin(); pl.app = app; await pl.onload();
-  p.igual('registra tres comandos', pl.comandos.length, 3);
+  p.igual('registra cuatro comandos', pl.comandos.length, 4);
   p.cierto('uno es recargar-ajustes', pl.comandos.some((c) => c.id === 'recargar-ajustes'));
   pl._datos = Object.assign({}, AJUSTES, { capas: 'A | a\nB | b', carpetaExport: 'otra' });
   await pl.recargarAjustes();
@@ -178,7 +183,7 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.igual('con el enlace largo, a0 baja bajo b0', con.indexOf('a0') > con.indexOf('b0'), true);
 
   // ── 8. Plantillas y asistente con config existente ───────────────────────────────────────────
-  p.igual('hay cuatro plantillas', PLANTILLAS.length, 4);
+  p.igual('hay cinco plantillas, con la de negocio', PLANTILLAS.map((x) => x[0]).join(','), 'llm,negocio,profesional,academico,zettel');
   p.cierto('la primera es la de siempre', PLANTILLAS[0][2] === CAPAS_ESTANDAR);
   p.igual('la profesional tiene cinco capas', PLANTILLAS.find((x) => x[0] === 'profesional')[2].length, 5);
   p.igual('sin carpetas no hay plantilla actual', plantillaActual(Object.assign({}, AJUSTES_BASE, { carpetas: '' })), null);
@@ -201,6 +206,25 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   ajustesUI.length = 0; new AsistenteCapas(app, pl4).onOpen();
   p.igual('sin config, la plantilla arranca en LLM wiki', fila('Layer template'), 'llm');
   p.igual('sin config, temas va donde sugiere el nombre', fila('temas'), '3');
+  // Elegir otra plantilla reparte las carpetas por nombre; volver a «actual» las devuelve.
+  const pl5 = new Plugin(); pl5.app = app; await pl5.onload(); pl5.ajustes = Object.assign({}, AJUSTES);
+  ajustesUI.length = 0; const as5 = new AsistenteCapas(app, pl5); as5.onOpen();
+  const menuPlantilla = () => ajustesUI.find((x) => x.nombre === 'Layer template').campos[0];
+  const ultima = (nombre) => ([...ajustesUI].reverse().find((x) => x.nombre === nombre) || {}).campos?.[0]?.valor;
+  menuPlantilla().alCambiar('negocio');
+  p.igual('con «negocio», proyectos va a clientes y proyectos (1)', ultima('proyectos'), '1');
+  p.igual('con «negocio», temas va a la última capa (4)', ultima('temas'), '4');
+  p.igual('con «negocio», diario va a la entrada (0)', ultima('diario'), '0');
+  p.igual('las fuentes no se tocan', ultima('raw'), '-2');
+  p.igual('lo que estaba en «no mostrar» sigue oculto', ultima('suelto'), '-1');
+  menuPlantilla().alCambiar('actual');
+  p.igual('volver a «actual» devuelve cada carpeta a su capa', `${ultima('temas')},${ultima('ideas')},${ultima('suelto')}`, '3,2,-1');
+  // Aplicar lo mismo que ya había avisa que no cambió nada, en vez de quedarse mudo.
+  const pl6 = new Plugin(); pl6.app = app; await pl6.onload();
+  pl6.ajustes = Object.assign({}, AJUSTES_BASE, { capas: 'Entrada | a\nTemas | b', carpetas: 'diario = 0\ntemas = 1', carpetasFuentes: '' });
+  const avisos0 = avisos.length;
+  await new AsistenteCapas(app, pl6).aplicar([{ carpeta: 'diario', capa: 0 }, { carpeta: 'temas', capa: 1 }], [['Entrada', 'a'], ['Temas', 'b']], false);
+  p.cierto('aplicar sin cambios lo dice', /No changes/.test(avisos.slice(avisos0).join(' ')), avisos.slice(avisos0));
 
   // ── 9. Filtro de largo alcance y layout radial ───────────────────────────────────────────
   const largo = normalizarEstado({ soloLargoAlcance: true }, { datos: D });
@@ -208,7 +232,6 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.cierto('el filtro de largo alcance solo deja nodos conectados a distancia', [...alcanceLargo].length > 0 && [...alcanceLargo].length < D.nodos.length);
   const radial = layoutRadial(D, 'temas/tienda-hub.md', { width: 1400, height: 900 }, { profundidad: 2 });
   p.igual('el layout radial entrega anillos BFS', radial.rings.map((ring) => ring.depth), [0, 1, 2]);
-
 
   process.exit(p.cerrar() ? 1 : 0);
 })().catch((e) => { console.error('ERROR INESPERADO\n', e.stack); process.exit(1); });

@@ -35,7 +35,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   pl.app = app;
   await pl.onload();
   p.igual('registra la vista del mapa', pl.vistas.length, 1);
-  p.igual('registra tres comandos', pl.comandos.length, 3);
+  p.igual('registra cuatro comandos', pl.comandos.length, 4);
   p.igual('registra el ícono de la barra', pl.ribbon.length, 1);
   p.igual('registra la pestaña de ajustes', pl.pestanas.length, 1);
   p.cierto('los comandos no repiten el nombre del plugin', !pl.comandos.some((c) => /mapa neuronal/i.test(c.name)));
@@ -127,12 +127,13 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   p.igual('rechaza una cita demasiado corta para verificar', pl2.verificarCita('turno', 'Encargada del turno de la mañana.'), false);
   p.igual('rechaza una cita reformulada', pl2.verificarCita('ella se encarga de la mañana', 'Encargada del turno de la mañana.'), false);
 
-  // ── 7. Los cuatro proveedores de IA y sus errores ────────────────────────────────────────────
+  // ── 7. Los cinco proveedores de IA y sus errores ────────────────────────────────────────────
   const esquema = { type: 'object', additionalProperties: false, required: ['fiel', 'problema'], properties: { fiel: { type: 'boolean' }, problema: { type: 'string' } } };
   const respuestas = {
     claude: { status: 200, json: { content: [{ type: 'text', text: '{"fiel":true,"problema":""}' }] } },
     openai: { status: 200, json: { choices: [{ message: { content: '{"fiel":true,"problema":""}' } }] } },
     gemini: { status: 200, json: { candidates: [{ content: { parts: [{ text: '```json\n{"fiel":true,"problema":""}\n```' }] } }] } },
+    openrouter: { status: 200, json: { choices: [{ message: { content: '{"fiel":true,"problema":""}' } }] } },
     local: { status: 200, json: { choices: [{ message: { content: '{"fiel":true,"problema":""}' } }] } },
   };
   for (const prov of Object.keys(PROVEEDORES)) {
