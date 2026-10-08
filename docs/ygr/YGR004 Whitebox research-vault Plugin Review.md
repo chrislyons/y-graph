@@ -6,6 +6,15 @@
 **Repository:** `y-graph`
 **Counterpart:** `whitebox:~/dev/research-vault` (git, Obsidian vault)
 
+> **Update 2026-10-08 (later):** the fork build was deployed (vault `28f30fc`, hover/perf fix
+> `f52236a`) and then replaced the same day by the upstream **1.35.0** release (vault `37f28c0`,
+> published 2026-10-03). `data.json` survived the update and was re-applied to the committed
+> six-layer scheme; verified 1.35.0 parses `capas`/`carpetas` with the same grammar and has no
+> consumer for the fork-only keys (`ordenCapas`, `profundidadRadial`, `temaVisual`,
+> `mostrarLeyenda`, `mostrarAyuda`, `vistasGuardadas`, `ultimaVista`), which were removed.
+> The vault currently runs pure upstream — y-graph customizations (YGR002/YGR003/YGR005) are not
+> live there; rebasing the fork onto the 1.32–1.35 line is the open path back.
+
 ---
 
 ## 1. What the vault actually runs (provenance)
