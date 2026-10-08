@@ -10,7 +10,7 @@
 const { cargarPlugin, vaultSimulado, pruebas, el, contexto2D } = require('./simulado.cjs');
 const p = pruebas('v133');
 const { Plugin, interno } = cargarPlugin(process.argv[2]);
-const { construir, VistaMapa, AJUSTES_BASE, CLAVE_IA, carpetasFuentesDe, nodoFuenteDe, inventarioFuentes } = interno;
+const { construir, VistaMapa, GraphRenderer, AJUSTES_BASE, CLAVE_IA, carpetasFuentesDe, nodoFuenteDe, inventarioFuentes, buscarNodos, buscarFuera, pasaFiltro } = interno;
 
 const ajustes = (extra) => Object.assign({}, AJUSTES_BASE, { configurado: true, capas: 'A|\nB|', carpetas: 'wiki = 1', carpetaCrudo: 'raw', carpetaWiki: 'wiki', proveedorIA: 'local', modeloIA: 'modelo-x', topeDiario: 30 }, extra);
 async function plugin(notas, extra) {
@@ -155,6 +155,8 @@ const respuesta = (obj) => ({ status: 200, json: { choices: [{ message: { conten
   }
 
   // ── 8. El buscador: palabras en cualquier orden, sin tildes, por alias y fuera del mapa ──────
+  // [adaptado al fork] El buscador del workbench vive en model/search.js (input del toolbar +
+  // resaltado del lienzo comparten la misma regla); no hay «buscarTodo» sobre VistaMapa.
   {
     const notas = {
       'wiki/segundo-cerebro.md': '---\ntitle: Segundo Cerebro\naliases:\n  - Mi wiki\n---\nx [[diseño]]',
@@ -163,38 +165,41 @@ const respuesta = (obj) => ({ status: 200, json: { choices: [{ message: { conten
       'index.md': 'raíz',
     };
     const { app } = vaultSimulado(notas);
-    const v = new VistaMapa({}, { ajustes: ajustes({ capas: 'A|', carpetas: 'wiki = 0', carpetasFuentes: 'raw/articles', fuentes: 'demanda' }), tieneIA: () => false, app, recortesSueltos: () => [], ingestaLista: () => false });
-    v.app = app; v.contentEl = el(); v.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-    v.ctx = v.lienzo.getContext(); v.marca = el(); v.chips = el(); v.estado = el(); v.panel = el(); v.guia = el();
-    await v.recargar();
-    p.igual('palabras en otro orden', v.buscarTodo('cerebro segundo')[0]?.id, 'wiki/segundo-cerebro.md');
-    p.igual('con guion o sin tilde', v.buscarTodo('diseno-de')[0]?.id, 'wiki/diseño.md');
-    p.igual('por alias del frontmatter', v.buscarTodo('mi wiki')[0]?.id, 'wiki/segundo-cerebro.md');
-    p.igual('encuentra un archivo que no está en el mapa', v.buscarFuera('crawl4ai')[0]?.ruta, 'raw/articles/2026-09-20-crawl4ai-open-source.md');
-    p.cierto('y una nota fuera de toda capa', v.buscarFuera('index').some((n) => n.ruta === 'index.md' && n.externo));
-    p.igual('lo que está en el mapa no se repite como externo', v.buscarFuera('segundo').length, 0);
-    v.filtro = 'CEREBRO segundo';
-    p.cierto('el filtro del mapa usa la misma regla', v.visible(v.porId['wiki/segundo-cerebro.md']) && !v.visible(v.porId['wiki/diseño.md']));
+    const D = await construir(app, ajustes({ capas: 'A|', carpetas: 'wiki = 0', carpetasFuentes: 'raw/articles', fuentes: 'demanda' }));
+    const enMapa = new Set(D.nodos.map((n) => n.id));
+    p.igual('palabras en otro orden', buscarNodos(D, 'cerebro segundo')[0]?.id, 'wiki/segundo-cerebro.md');
+    p.igual('con guion o sin tilde', buscarNodos(D, 'diseno-de')[0]?.id, 'wiki/diseño.md');
+    p.igual('por alias del frontmatter', buscarNodos(D, 'mi wiki')[0]?.id, 'wiki/segundo-cerebro.md');
+    p.igual('encuentra un archivo que no está en el mapa', buscarFuera(app, enMapa, 'crawl4ai')[0]?.ruta, 'raw/articles/2026-09-20-crawl4ai-open-source.md');
+    p.cierto('y una nota fuera de toda capa', buscarFuera(app, enMapa, 'index').some((n) => n.ruta === 'index.md' && n.externo));
+    p.igual('lo que está en el mapa no se repite como externo', buscarFuera(app, enMapa, 'segundo').length, 0);
+    const porId = Object.fromEntries(D.nodos.map((n) => [n.id, n]));
+    p.cierto('el filtro del mapa usa la misma regla',
+      pasaFiltro(porId['wiki/segundo-cerebro.md'], 'CEREBRO segundo') && !pasaFiltro(porId['wiki/diseño.md'], 'CEREBRO segundo'));
   }
 
   // ── 9. Los pulsos: ninguno se corta a mitad de curva y nunca se quedan en cero ───────────────
+  // [adaptado al fork] Los pulsos viven en GraphRenderer (dibujarPulsos + puntoEn sobre la curva
+  // real de la escena); se muestrea el renderizador directamente en vez de la vista monolítica.
   {
     // 45 notas en L0 y 40 en L1, bien conectadas: k resulta múltiplo de 7, el caso que antes apagaba turnos enteros.
     const notas = {};
     for (let i = 0; i < 45; i++) notas[`d/n${i}.md`] = Array.from({ length: 7 }, (_, j) => `[[m${(i * 3 + j) % 40}]]`).join(' ');
     for (let j = 0; j < 40; j++) notas[`e/m${j}.md`] = 'x';
     const { app } = vaultSimulado(notas);
-    const v = new VistaMapa({}, { ajustes: ajustes({ capas: 'A|\nB|', carpetas: 'd = 0\ne = 1', animacion: true }), tieneIA: () => false, app, recortesSueltos: () => [], ingestaLista: () => false });
-    v.app = app; v.contentEl = el(); v.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-    v.ctx = v.lienzo.getContext(); v.marca = el(); v.chips = el(); v.estado = el(); v.panel = el(); v.guia = el();
-    await v.recargar(); v.medir();
+    const D = await construir(app, ajustes({ capas: 'A|\nB|', carpetas: 'd = 0\ne = 1', animacion: true }));
+    const lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
+    const r = new GraphRenderer(lienzo, { medirTexto: (t) => String(t).length * 6.5, preferencias: { animacion: true } });
+    r.setViewport({ width: 1400, height: 900, dpr: 1 });
+    const base = { modo: 'capas', camara: { x: 0, y: 0, k: 1 }, filtro: '' };
+    r.setGraph(D, base);
     const ctx = { set globalCompositeOperation(x) {}, set fillStyle(x) {}, beginPath() {}, fill() {}, arc() {} };
     const medir = () => {
-      let prev = null, cortes = 0, minimo = Infinity; const orig = v.puntoEn.bind(v);
+      let prev = null, cortes = 0, minimo = Infinity; const orig = r.puntoEn.bind(r);
       for (let t = 5000; t < 35000; t += 33) {
-        const vivos = new Map(); v.tiempo = t;
-        v.puntoEn = (A, B, u, r) => { vivos.set(A.id + '>' + B.id, u); return orig(A, B, u, r); };
-        v.dibujarPulsos(ctx, 1, (x) => v.colorTema(x)); v.puntoEn = orig;
+        const vivos = new Map(); r.tiempo = t;
+        r.puntoEn = (A, B, u, rad) => { vivos.set(A.id + '>' + B.id, u); return orig(A, B, u, rad); };
+        r.dibujarPulsos(ctx, 1, (x) => r.colorTema(x)); r.puntoEn = orig;
         if (prev) { for (const [k, u] of prev) if (!vivos.has(k) && u > 0.08 && u < 0.92) cortes++; for (const [k, u] of vivos) if (!prev.has(k) && u > 0.08 && u < 0.92) cortes++; }
         minimo = Math.min(minimo, vivos.size); prev = vivos;
       }
@@ -203,13 +208,17 @@ const respuesta = (obj) => ({ status: 200, json: { choices: [{ message: { conten
     const a = medir();
     p.igual('mapa: ningún pulso nace o muere a mitad de su curva', a.cortes, 0);
     p.cierto('mapa: siempre hay pulsos en pantalla', a.minimo > 0);
-    v.radial = true; v.foco = 'e/m0.md'; v.medir();
+    r.setGraph(D, { ...base, modo: 'radial', foco: 'e/m0.md', seleccion: 'e/m0.md' });
     const b = medir();
     p.igual('radial: ningún pulso se corta', b.cortes, 0);
     p.cierto('radial: siempre hay una onda en movimiento', b.minimo > 0);
   }
 
   // ── 10. UI/UX (auditoría del 25.09): disposición con el panel, el teléfono y el radial ────────
+  // [adaptado al fork] Sin «medir/encuadrar» de la vista monolítica: el tope por capa vive en
+  // VistaMapa.aplicarTopePorCapa (adoptarEstado), la zona segura en areaSegura/enfocar, la
+  // reserva del panel en encuadrar + renderer.camera(), los anillos en layoutRadial y los
+  // rótulos en el renderizador. Las posiciones salen de la escena del renderizador.
   {
     // Un vault con 4 capas y una columna larga, como el real.
     const notas = {};
@@ -218,48 +227,53 @@ const respuesta = (obj) => ({ status: 200, json: { choices: [{ message: { conten
     for (let j = 0; j < 30; j++) notas[`d/d${j}.md`] = `[[k${j}]] [[e${j % 20}]]`;
     for (let j = 0; j < 4; j++) notas[`t/t${j}.md`] = 'tema';
     const { app } = vaultSimulado(notas);
-    const vista = (ancho, alto, extra) => {
-      const v = new VistaMapa({}, { ajustes: ajustes(Object.assign({ capas: 'A|\nB|\nC|\nD|', carpetas: 'd = 0\ne = 1\nc = 2\nt = 3' }, extra)), tieneIA: () => false, app, recortesSueltos: () => [], ingestaLista: () => false });
+    const vista = (ancho, alto, extra, movil, ap = app) => {
+      const v = new VistaMapa({}, { ajustes: ajustes(Object.assign({ capas: 'A|\nB|\nC|\nD|', carpetas: 'd = 0\ne = 1\nc = 2\nt = 3' }, extra)), tieneIA: () => false, app: ap, recortesSueltos: () => [], ingestaLista: () => false });
       const caja = (o) => Object.assign(el(), { getBoundingClientRect: () => Object.assign({ top: 0, left: 0, right: ancho, bottom: alto, width: ancho, height: alto }, o) });
-      v.app = app; v.contentEl = caja({}); v.lienzo = { style: {}, setAttribute() {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: ancho, height: alto, top: 0, left: 0 }) };
-      v.ctx = v.lienzo.getContext(); v.marca = el(); v.chips = el(); v.estado = el(); v.guia = el();
-      v.barra = caja({ bottom: 90, height: 80 }); v.panel = caja({}); v.panel.hasClass = () => false;
+      v.app = ap; v.contentEl = caja({});
+      const lienzo = { style: {}, setAttribute() {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: ancho, height: alto, top: 0, left: 0 }) };
+      v.renderer = new GraphRenderer(lienzo, { medirTexto: (t) => String(t).length * 6.5, preferencias: { mobile: !!movil } });
+      v.renderer.setViewport({ width: ancho, height: alto, dpr: 1 });
       return { v, caja };
     };
     // Teléfono: el tope por capa ya vale en la primera carga, sin esperar un cambio de tamaño.
-    const tel = vista(390, 844).v; await tel.recargar();
+    const tel = vista(390, 844, {}, true).v; await tel.recargar();
     const cabe = Math.max(12, Math.floor((844 - 230) / 13));
-    p.cierto('teléfono: desde la primera carga cada capa muestra solo lo que cabe', tel.N.filter((n) => n.capa === 2 && !n.oculto).length <= cabe && tel.ocultas[2] > 0);
+    const capa2 = tel.datos.nodos.filter((n) => n.capa === 2 && tel.visibles.has(n.id));
+    p.cierto('teléfono: desde la primera carga cada capa muestra solo lo que cabe', capa2.length <= cabe && (tel.ocultas[2] || 0) > 0);
     // Tocar una nota de la mitad de abajo: la hoja del panel no la tapa.
-    const t2 = vista(390, 844); await t2.v.recargar(); t2.v.medir(); t2.v.encuadrar();
-    t2.v.panel = t2.caja({ top: 420, left: 8, width: 374, height: 380 }); t2.v.panel.hasClass = (c) => c === 'abierto';
-    t2.v.abrirPanel = () => {};
-    const abajoDelTodo = t2.v.N.filter((n) => !n.oculto && n.capa === 1).sort((a, b) => b.y - a.y)[0];
-    t2.v.enfocar(abajoDelTodo.id, false);
-    const sy = abajoDelTodo.y * t2.v.vista.k + t2.v.vista.y;
-    p.cierto('teléfono: la nota tocada queda entre la barra y la hoja del panel', sy > 90 && sy < 420);
+    const t2 = vista(390, 844, {}, true); await t2.v.recargar(); t2.v.encuadrar();
+    const abajoDelTodo = t2.v.renderer.scene.nodes.filter((n) => n.capa === 1 && t2.v.visibles.has(n.id)).sort((a, b) => b.y - a.y)[0];
+    t2.v.enfocar(abajoDelTodo.id, true);
+    const cam2 = t2.v.renderer.camera();
+    const sy = abajoDelTodo.y * cam2.k + cam2.y;
+    const hoja = 844 - Math.min(0.58 * 844, 560) - 8;
+    p.cierto('teléfono: la nota tocada queda entre la barra y la hoja del panel', sy > 8 && sy < hoja);
     // Ventana de 820 px con el panel abierto: la capa de temas queda a la izquierda del panel.
-    const t3 = vista(820, 1000); await t3.v.recargar();
-    t3.v.panel = t3.caja({ left: 426, width: 382 }); t3.v.panel.hasClass = (c) => c === 'abierto';
-    t3.v.medir(); t3.v.encuadrar();
-    const ultima = Math.max(...t3.v.N.filter((n) => n.capa === 3).map((n) => n.x * t3.v.vista.k + t3.v.vista.x));
+    const t3 = vista(820, 1000, {}, false);
+    t3.v.inspectorWorkbench = { width: 382, mobile: false, setGraph() {}, setState() {}, setSourceMode() {}, update() {} };
+    await t3.v.recargar(); t3.v.encuadrar();
+    const cam3 = t3.v.renderer.camera();
+    const ultima = Math.max(...t3.v.renderer.scene.nodes.filter((n) => n.capa === 3).map((n) => n.x * cam3.k + cam3.x));
     p.cierto('820 px con panel: la última capa no queda debajo del panel', ultima < 426);
-    // Radial con anillos llenos (70 y 80 notas, como el cerebro): caben entre la barra y el borde de abajo.
+    // Radial con anillos llenos (70 y 80 notas, como el cerebro): caben entre el borde de arriba y el pie.
     const grande = { 'e/centro.md': Array.from({ length: 70 }, (_, i) => `[[a${i}]]`).join(' ') };
     for (let i = 0; i < 70; i++) grande[`c/a${i}.md`] = `[[b${i}]] [[b${(i + 35) % 80}]]`;
     for (let i = 0; i < 80; i++) grande[`d/b${i}.md`] = 'x';
     const g = vaultSimulado(grande);
-    const t4v = new VistaMapa({}, { ajustes: ajustes({ capas: 'A|\nB|\nC|', carpetas: 'd = 0\ne = 1\nc = 2' }), tieneIA: () => false, app: g.app, recortesSueltos: () => [], ingestaLista: () => false });
-    const caja4 = (o) => Object.assign(el(), { getBoundingClientRect: () => Object.assign({ top: 0, left: 0, right: 1440, bottom: 860, width: 1440, height: 860 }, o) });
-    Object.assign(t4v, { app: g.app, contentEl: caja4({}), barra: caja4({ bottom: 90, height: 80 }), panel: caja4({}), marca: el(), chips: el(), estado: el(), guia: el() });
-    t4v.panel.hasClass = () => false; t4v.lienzo = { style: {}, setAttribute() {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1440, height: 860, top: 0, left: 0 }) }; t4v.ctx = t4v.lienzo.getContext();
-    await t4v.recargar(); t4v.radial = true; t4v.foco = 'e/centro.md'; t4v.medir(); t4v.encuadrar();
-    const t4 = { v: t4v };
-    const ys = t4.v.N.filter((n) => n.id in t4.v.dist).map((n) => n.y);
-    p.cierto('radial: ningún nodo pasa bajo la barra ni se sale por abajo', Math.min(...ys) >= 90 && Math.max(...ys) <= 860 - 20);
+    const t4 = vista(1440, 860, { capas: 'A|\nB|\nC|', carpetas: 'd = 0\ne = 1\nc = 2' }, false, g.app);
+    await t4.v.recargar();
+    t4.v.estado.modo = 'radial';
+    t4.v.estado.seleccion = 'e/centro.md';
+    t4.v.adoptarEstado(t4.v.estado);
+    t4.v.encuadrar();
+    const cam4 = t4.v.renderer.camera();
+    const ys = t4.v.renderer.scene.nodes.filter((n) => n.dist != null).map((n) => n.y * cam4.k + cam4.y);
+    p.cierto('radial: ningún nodo pasa bajo la barra ni se sale por abajo', Math.min(...ys) >= 8 && Math.max(...ys) <= 860 - 50);
     // Textos del lienzo que antes estaban fijos en español.
     const dichos = []; const ctx = contexto2D(); ctx.fillText = (s) => dichos.push(String(s));
-    t4.v.ctx = ctx; t4.v.capaA = null; t4.v.dibujarEscena(ctx, true);
+    t4.v.renderer.ctx = ctx;
+    t4.v.renderer.render(1000);
     p.cierto('radial en inglés: el rótulo del anillo dice «hop», no «salto»', dichos.some((s) => /hop/.test(s)) && !dichos.some((s) => /salto/.test(s)));
   }
 

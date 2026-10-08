@@ -433,6 +433,7 @@ const EN = {
   'Cita': 'Quote',
   'Material de origen': 'Source material',
   'aprobado por la persona': 'approved by the person',
+  '{0} salto(s)': '{0} hop(s)',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
 export const enEspanol = () => {

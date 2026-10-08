@@ -1,4 +1,7 @@
-import { layoutCapas, layoutRadial } from './layouts.js';
+import { layoutCapas, layoutRadial, puntosCurva } from './layouts.js';
+import { T } from '../i18n.js';
+import { sorteo } from '../model/ingestion.js';
+import { pasaFiltro } from '../model/search.js';
 
 const CELL_SIZE = 160;
 const TAU = Math.PI * 2;
@@ -6,6 +9,12 @@ const ETIQUETA_ALTO = 18;
 const ETIQUETA_ESPACIO = 4;
 const DASH_VACIO = Object.freeze([]);
 const DASH_SALUD = Object.freeze([4, 3]);
+
+// Color hex con alfa para los pulsos (rgba de upstream).
+function rgba(h, a) {
+  const v = parseInt(String(h).replace('#', ''), 16) || 0xC9D1FF;
+  return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${a})`;
+}
 
 const PALETA_BASE = Object.freeze({
   bg: '#111827', surface: '#1f2937', border: '#4b5563', text: '#f9fafb', muted: '#9ca3af',
@@ -20,10 +29,6 @@ function texto(value) {
 function numero(value, defecto = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : defecto;
-}
-
-function sinAcentos(value) {
-  return texto(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
 }
 
 function limitesVisibles(limites, left, top, right, bottom) {
@@ -87,10 +92,10 @@ function nodoImportante(id, estado) {
     || (Array.isArray(estado.ruta) && estado.ruta.includes(id));
 }
 
+// La misma regla que el buscador del workbench: palabras en cualquier orden, sin tildes,
+// guiones ni mayúsculas, y también por alias. Solo se resalta con filtro activo.
 function estaBuscado(nodo, filtro) {
-  if (!filtro) return false;
-  const busqueda = sinAcentos(filtro);
-  return sinAcentos(`${nodo.titulo} ${nodo.id}`).includes(busqueda);
+  return !!filtro && pasaFiltro(nodo, filtro);
 }
 
 function medida(medirTexto, text, font) {
@@ -152,6 +157,9 @@ export class GraphRenderer {
     this._visibleScreenBounds = { minX: 0, minY: 0, maxX: 1, maxY: 1 };
     this._edgeDash = [];
     this._edgeDashK = 0;
+    this.tiempo = 0;
+    this._dist = new Map();
+    this._ady = new Map();
   }
 
   setViewport({ width, height, dpr } = {}) {
@@ -212,6 +220,7 @@ export class GraphRenderer {
     if (this._destroyed || !this.ctx) return;
     this._ensureGeometry();
     const stamp = Number.isFinite(Number(tiempo)) ? Number(tiempo) : Date.now();
+    this.tiempo = stamp;   // [1.33] los pulsos se deciden con el reloj del cuadro, no con el índice del grupo
     const low = this._isLowDetail(stamp);
     if (this._lastLowDetail !== null && this._lastLowDetail !== low) this._dirtyBackground = true;
     this._lastLowDetail = low;
@@ -223,6 +232,7 @@ export class GraphRenderer {
     if (this._dirtyBackground || this._dirtyForeground) this._prepareFrame(low);
     if (!layers) {
       if (this._dirtyBackground || this._dirtyForeground || resized) this._drawScene(this.ctx, { low, direct: true, presentation: false });
+      this._drawPulsos(this.ctx);
       return;
     }
     if (this._dirtyBackground) {
@@ -236,6 +246,114 @@ export class GraphRenderer {
       this._dirtyForeground = false;
     }
     this._composite(this.ctx, layers, pixelWidth, pixelHeight);
+    this._drawPulsos(this.ctx);
+  }
+
+  /** Los pulsos viven fuera de las capas cacheadas: solo ellos se repintan cada cuadro. */
+  _drawPulsos(ctx) {
+    if (!this.scene || !this._pulsosActivos()) return;
+    if (typeof ctx.setTransform === 'function') ctx.setTransform(this.viewport.dpr, 0, 0, this.viewport.dpr, 0, 0);
+    this.dibujarPulsos(ctx, Math.sqrt(Math.max(0.09, this._camera().k)), (tema) => this.colorTema(tema));
+  }
+
+  /** Con «Animación» apagado o pidiendo menos movimiento, no hay pulsos (ni cuadros) en pantalla. */
+  _pulsosActivos() {
+    if (this.preferencias.animacion !== true) return false;
+    return !(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  /** Hex del tema del mapa (o el color de borde si el tema no tiene color). */
+  colorTema(tema) {
+    const t = this.datos && this.datos.temas && tema ? this.datos.temas[tema] : null;
+    const c = Array.isArray(t) ? t[1] : t && (t.color || t.nombre);
+    return typeof c === 'string' && c ? c : this.paleta.edge;
+  }
+
+  /** Punto de la curva real de la escena en u ∈ [0, 1): el pulso siempre monta sobre la línea. */
+  puntoEn(A, B, u, radial = false) {
+    const centro = radial ? this._nodeById.get(texto(this.estado.foco || this.estado.seleccion)) : null;
+    const puntos = puntosCurva(A, B, radial ? 'radial' : A.capa === B.capa ? 'same' : 'cross', centro);
+    const q = (a, b, c, d) => (1 - u) ** 3 * a + 3 * (1 - u) ** 2 * u * b + 3 * (1 - u) * u * u * c + u ** 3 * d;
+    return [q(A.x, puntos.c1x, puntos.c2x, B.x), q(A.y, puntos.c1y, puntos.c2y, B.y)];
+  }
+
+  /**
+   * [1.33] Cada pulso decide si sale al empezar SU viaje y lo termina: antes el grupo que pulsaba
+   * cambiaba cada 2,6 s sin mirar dónde iba cada pulso (cientos cortados a mitad de curva cada 30 s
+   * en el cerebro real), y la selección «(i·7 + turno·13) % k» dejaba turnos enteros sin ningún
+   * pulso cuando k compartía un factor con 7. Ahora el sorteo es por enlace y por viaje: parejo y
+   * sin cortes. ctx solo recibe globalCompositeOperation/fillStyle/beginPath/arc/fill.
+   */
+  dibujarPulsos(ctx, sk, color) {
+    if (!this._pulsosActivos() || !this.scene) return;
+    const cam = this._camera();
+    const t = numero(this.tiempo, 0);
+    const radial = this.scene.mode === 'radial';
+    const ruta = Array.isArray(this.estado.ruta) ? this.estado.ruta : [];
+    const pares = [];   // [de, a, u, tono, onda]
+    const dur = ruta.length > 1 ? 2200 : 1700;
+    const punto = (id) => this._nodeById.get(id);
+    if (ruta.length > 1) {
+      for (let i = 0; i < ruta.length - 1; i++) pares.push([ruta[i], ruta[i + 1], ((t / dur) - i / Math.max(ruta.length - 1, 1) + 1) % 1, '#FFFFFF']);
+    } else if (!radial) {
+      const c = texto(this.estado.foco || this.estado.sobre);
+      const vis = this.scene.edges.filter((e) => this._edgeVisible(e));
+      const lista = c ? vis.filter((e) => e.a === c || e.b === c) : vis.filter((e) => {
+        const A = punto(e.a), B = punto(e.b);
+        return A && B && (Math.abs(A.capa - B.capa) === 1 || A.supernode || B.supernode);
+      });
+      const p = c ? 1 : Math.min(1, 45 / Math.max(1, lista.length));
+      for (const [i, e] of lista.entries()) {
+        const fase = (i * 0.618) % 1, viaje = Math.floor(t / dur + fase);
+        if (p < 1 && sorteo(i, viaje) >= p) continue;
+        const A = punto(e.a), B = punto(e.b);
+        if (!A || !B) continue;
+        const [de, a] = A.capa <= B.capa ? [e.a, e.b] : [e.b, e.a];
+        pares.push([de, a, (t / dur + fase) % 1, color((A.capa >= B.capa ? A : B).tema)]);
+      }
+    } else {
+      // Radial: ondas que salen del centro, llegan al anillo 1 y siguen al 2. Dos ondas
+      // desfasadas medio ciclo, para que siempre haya algo en movimiento.
+      const dist = this._dist;
+      const ady = this._ady;
+      const foco = texto(this.estado.foco || this.estado.seleccion);
+      const vis = this.scene.edges.filter((e) => this._edgeVisible(e)
+        && dist.has(e.a) && dist.has(e.b) && Math.abs(dist.get(e.a) - dist.get(e.b)) === 1);
+      const sobre = this.estado.sobre && texto(this.estado.sobre) !== foco ? texto(this.estado.sobre) : null;
+      const ciclo = 1700 * 2.6;
+      for (const nivel of [0, 1]) {
+        let tramo = vis.filter((e) => Math.min(dist.get(e.a), dist.get(e.b)) === nivel);
+        if (sobre) {
+          const vecinos = ady.get(sobre) || [];
+          tramo = tramo.filter((e) => e.a === sobre || e.b === sobre || (nivel === 0 && (vecinos.includes(e.a) || vecinos.includes(e.b))));
+        }
+        const p = Math.min(1, (nivel === 0 ? 60 : 70) / 2 / Math.max(1, tramo.length));
+        for (const onda of [0, 1]) {
+          const to = t + onda * ciclo / 2, vuelta = Math.floor(to / ciclo) * 2 + onda;
+          tramo.forEach((e, i) => {
+            if (p < 1 && sorteo(i + nivel * 100003, vuelta) >= p) return;
+            const local = (to % ciclo) / 1700 - (nivel + ((i * 0.618) % 1) * 0.25);
+            if (local < 0 || local > 1) return;
+            const A = punto(e.a), B = punto(e.b);
+            if (!A || !B) return;
+            const [de, a] = dist.get(e.a) <= dist.get(e.b) ? [e.a, e.b] : [e.b, e.a];
+            pares.push([de, a, local, color((dist.get(e.a) >= dist.get(e.b) ? A : B).tema), true]);
+          });
+        }
+      }
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [de, a, u, tono, onda] of pares) {
+      const A = punto(de), B = punto(a);
+      if (!A || !B) continue;
+      const [wx, wy] = this.puntoEn(A, B, u, radial);
+      const x = wx * cam.k + cam.x, y = wy * cam.k + cam.y;
+      ctx.fillStyle = rgba(tono, onda ? 0.25 : 0.22);
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); ctx.arc(x, y, 1.7, 0, TAU); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   hitTest(x, y) {
@@ -337,6 +455,18 @@ export class GraphRenderer {
     this._dataIdentity = this.datos;
     this._geometrySignature = signature;
     this._nodeById = new Map(next.nodes.map((node) => [node.id, node]));
+    // Distancia al foco y vecindad: los pulsos radiales y las ondas los leen cada cuadro.
+    this._dist = new Map();
+    this._ady = new Map();
+    if (next.mode === 'radial') {
+      for (const ring of next.rings || []) for (const id of ring.ids) this._dist.set(id, ring.depth);
+      for (const edge of next.edges) {
+        if (!this._ady.has(edge.a)) this._ady.set(edge.a, []);
+        if (!this._ady.has(edge.b)) this._ady.set(edge.b, []);
+        this._ady.get(edge.a).push(edge.b);
+        this._ady.get(edge.b).push(edge.a);
+      }
+    }
     this._decorateNodes(next);
     this._buildSpatialHash(next);
     this._computeVisibility();
@@ -425,6 +555,9 @@ export class GraphRenderer {
   _candidateNode(candidate) {
     return this._nodeById.get(candidate.nodeId || candidate.id);
   }
+
+  /** Cámara efectiva (desplazada por la reserva del inspector): la usan los pulsos y las pruebas. */
+  camera() { return this._camera(); }
 
   _camera() {
     const source = this.estado && this.estado.camara ? this.estado.camara : { x: 0, y: 0, k: 1 };
@@ -754,12 +887,21 @@ export class GraphRenderer {
 
   _drawIndicators(ctx, camera) {
     if (this.scene.mode !== 'radial' || !this.scene.rings) return;
+    const center = this._nodeById.get(this.scene.focus);
+    if (!center) return;
     for (const ring of this.scene.rings) {
-      if (!ring.omitted) continue;
-      const center = this._nodeById.get(this.scene.focus);
-      if (!center) continue;
-      if (ctx.fillStyle !== undefined) ctx.fillStyle = this.paleta.warning;
-      if (typeof ctx.fillText === 'function') ctx.fillText(`+${ring.omitted}`, center.x * camera.k + camera.x, (center.y - ring.radio - 10) * camera.k + camera.y);
+      if (!ring.depth) continue;
+      const x = center.x * camera.k + camera.x;
+      const y = (center.y - ring.radio) * camera.k + camera.y;
+      // [1.33] Traducido (decía «salto» también en inglés): el rótulo del anillo con su cuenta.
+      if (typeof ctx.fillText === 'function') {
+        ctx.fillStyle = this.paleta.muted;
+        ctx.fillText(`${T('{0} salto(s)', ring.depth)} · ${ring.count}`, x + 6, y - 8);
+        if (ring.omitted) {
+          ctx.fillStyle = this.paleta.warning;
+          ctx.fillText(`+${ring.omitted}`, x + 6, y + 6);
+        }
+      }
     }
   }
 

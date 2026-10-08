@@ -8,7 +8,9 @@ export function carpetasFuentesDe(s) {
   return String(s.carpetasFuentes || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
     const grupo = l.endsWith('/*'); const ruta = (grupo ? l.slice(0, -2) : l).replace(/^\/+|\/+$/g, '');
     return ruta ? { ruta, grupo } : null;
-  }).filter(Boolean);
+  // [1.33] La más específica primero: con «raw», «raw/articles» y «raw/daily/*» ganaba siempre
+  // «raw»; el agrupado por día nunca se aplicaba y el inventario contaba los archivos dos veces.
+  }).filter(Boolean).sort((a, b) => b.ruta.length - a.ruta.length);
 }
 export function citasDe(texto, carpetas) {
   if (!carpetas.length) return [];
@@ -41,14 +43,21 @@ export function nodoFuenteDe(ruta, carpetas) {
 export function inventarioFuentes(app, carpetas) {
   const todos = (app.vault.getFiles ? app.vault.getFiles() : app.vault.getMarkdownFiles()).map((f) => f.path);
   const items = [];
+  // Cada archivo cuenta una vez, en su carpeta más específica (carpetas viene ordenada así).
+  const suya = (r) => carpetas.find((x) => r.startsWith(x.ruta + '/'));
   for (const c of carpetas) {
-    const dentro = todos.filter((r) => r.startsWith(c.ruta + '/'));
+    const dentro = todos.filter((r) => suya(r) === c);
     if (c.grupo) { const subs = new Set(dentro.map((r) => r.slice(c.ruta.length + 1).split('/')[0]).filter((s) => dentro.some((r) => r.startsWith(c.ruta + '/' + s + '/')))); for (const s of subs) items.push({ ruta: c.ruta + '/' + s, titulo: s, carpeta: c, grupo: true }); }
     else for (const r of dentro) items.push({ ruta: r, titulo: r.slice(c.ruta.length + 1), carpeta: c });
   }
   return items;
 }
-const MOTIVO = /^- \[\[([^\]|#]+)\]\]\s+—\s+(.+)$/gm;
+// «- [[nota]] — motivo», y también «- [[a]] · [[b]] — motivo» (un motivo para varias) o con alias.
+const MOTIVO = /^- ((?:\[\[[^\]]+\]\][\s·,]*)+)\s+—\s+(.+)$/gm;
+// Clave de un enlace para compararlo con el nombre del archivo: Obsidian no distingue mayúsculas,
+// y «[[wiki/tecnico/x#sección|X]]» apunta a x.
+const claveEnlace = (t) => String(t || '').split('|')[0].split('#')[0].trim().replace(/\.md$/i, '').split('/').pop().toLowerCase();
+const enlacesEnLinea = (l) => [...l.matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => claveEnlace(m[1]));
 // Fecha LOCAL, no UTC: en Chile, después de las 21:00 toISOString() ya es el día siguiente (lección del 01.09).
 
 // Enlaces externos declarados en el frontmatter. Acepta «Título | https://…», «https://…» y
@@ -109,16 +118,17 @@ export function crearRegistro(app, archivo, texto, mtime = null, s = {}) {
   tema = tema ? String(tema) : null;
   const cuerpo = String(texto || '');
   const curados = {};
-  for (const m of cuerpo.matchAll(MOTIVO)) curados[m[1].trim()] = m[2].trim();
+  for (const m of cuerpo.matchAll(MOTIVO)) for (const k of enlacesEnLinea(m[1])) if (!curados[k]) curados[k] = m[2].trim();
   const lineas = cuerpo.split('\n');
   const finCuerpo = (() => { const i = lineas.findIndex((l) => l.startsWith('## ' + (s.seccionMotivos || 'Conexiones'))); return i < 0 ? lineas.length : i; })();
   const enlaces = enlacesDe(fm, s).map((e) => Object.freeze({ titulo: e.titulo, url: e.url }));
+  const alias = Object.freeze([].concat(fm.aliases || fm.alias || []).map(String).filter(Boolean).slice(0, 12));
   const carpetasF = carpetasFuentesDe(s);
   return Object.freeze({
     path: archivo.path, basename: archivo.basename, mtime,
     titulo: String(fm.title || archivo.basename).slice(0, 90), tema,
     updated: fm.updated ? String(fm.updated) : null, resumenAprobado: fm.resumen ? String(fm.resumen) : null,
-    resumen: fm.resumen ? String(fm.resumen) : resumir(cuerpo), enlaces: Object.freeze(enlaces),
+    resumen: fm.resumen ? String(fm.resumen) : resumir(cuerpo), enlaces: Object.freeze(enlaces), alias,
     hub: fm.hub === true || String(fm.hub).toLowerCase() === 'true',
     curados: Object.freeze(curados), lineas: Object.freeze(lineas), finCuerpo,
     citas: Object.freeze(carpetasF.length ? citasDe(cuerpo, carpetasF).map((c) => Object.freeze({ ruta: c.ruta, linea: c.linea })) : []),
@@ -148,7 +158,7 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
     if (registro.tema && !cfg.temas[registro.tema]) cfg.temas[registro.tema] = [registro.tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
     nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: registro.titulo, tema: registro.tema,
       propio: !!registro.tema, updated: registro.updated, resumenAprobado: registro.resumenAprobado,
-      resumen: registro.resumen, enlaces: registro.enlaces.map((e) => ({ ...e })), hub: registro.hub };
+      resumen: registro.resumen, enlaces: registro.enlaces.map((e) => ({ ...e })), alias: registro.alias || [], hub: registro.hub };
     porRuta[f.path] = f.path;
   }
   // Validación de la config: carpetas que no tienen ninguna nota y notas que no caen en capa alguna.
@@ -168,16 +178,17 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
   const sinCapa = cfg.carpetas.length ? todas.filter((f) => capaDe(f.path) < 0 && enArbolMapeado(f.path) && !cfg.excluir.has(f.basename) && !enFuentes(f.path)).map((f) => f.path) : [];
   for (const id of Object.keys(nodos)) {
     const registro = records.get(id);
+    const clavesDe = [];
     for (const destino of Object.keys(links[id] || {})) {
       if (!porRuta[destino] || destino === id) continue;
-      const base = destino.split('/').pop().replace(/\.md$/, '');
+      const base = claveEnlace(destino);
       const motivo = registro.curados[base] || '';
       poner(id, destino, motivo);
       if (!motivo) {
         const k = id < destino ? id + '|' + destino : destino + '|' + id;
         if (!frases[k]) for (let i = 0; i < registro.finCuerpo; i++) {
           const l = registro.lineas[i];
-          if (l.includes('[[' + base + ']]') || l.includes('[[' + base + '|')) { frases[k] = { origen: id, destino, linea: i + 1, texto: limpiarFrase(l) }; break; }
+          if (l.includes('[[') && (clavesDe[i] ??= enlacesEnLinea(l)).includes(base)) { frases[k] = { origen: id, destino, linea: i + 1, texto: limpiarFrase(l) }; break; }
         }
       }
     }

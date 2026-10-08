@@ -1,5 +1,6 @@
 import { T } from '../i18n.js';
 import { aplicarFiltros, normalizarEstado } from '../view/state.js';
+import { buscarNodos } from '../model/search.js';
 
 function value(value, fallback = '') { return value == null ? fallback : String(value); }
 function nodeId(node) { return value(node && node.id || node && node.ruta); }
@@ -56,6 +57,8 @@ export class InteractionController {
     this.onFit = options.onFit || null;
     this.onSearch = options.onSearch || null;
     this.onHover = options.onHover || null;
+    // Archivos fuera del mapa que el buscador ofrece abrir (el dueño del vault está en la vista).
+    this.buscarFuera = options.buscarFuera || null;
     this.onPan = options.onPan || null;
     this.onZoom = options.onZoom || null;
     this.onLongPress = options.onLongPress || null;
@@ -361,20 +364,23 @@ export class InteractionController {
     clear(this.searchResults);
     this.searchOptions = [];
     this.searchResults.className = 'mn-resultados' + (this.estado.filtro.trim() ? ' mostrar' : '');
-    const q = this.estado.filtro.trim().toLocaleLowerCase();
-    const results = q ? this._order.filter((id) => {
-      const n = nodesOf(this.datos).find((node) => nodeId(node) === id) || {};
-      return value(n.titulo || id).toLocaleLowerCase().includes(q) || value(n.tema).toLocaleLowerCase().includes(q);
-    }) : [];
-    for (const id of results) {
+    const q = this.estado.filtro.trim();
+    // [1.33] Índice completo (también lo oculto por el tope por capa) y, además, lo que no está
+    // en el mapa: el mismo orden y la misma regla que el resaltado del lienzo.
+    const results = q ? [
+      ...buscarNodos(this.datos, q),
+      ...(typeof this.buscarFuera === 'function' ? this.buscarFuera(q) : []),
+    ] : [];
+    this._resultados = results;
+    for (const n of results) {
+      const id = value(n.id);
       const option = makeElement(this.document, 'li');
-      const node = nodesOf(this.datos).find((n) => nodeId(n) === id) || {};
       option.id = this.searchResults.id + '-' + id.replace(/[^A-Za-z0-9_-]/g, '-');
       option.className = 'mn-resultado';
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', 'false');
-      option.textContent = value(node.titulo || id);
-      this._listen(option, 'click', () => this.select(id, 'nodo'));
+      option.textContent = value(n.titulo || id);
+      this._listen(option, 'click', () => this._abrirResultado(n));
       append(this.searchResults, option);
       this.searchOptions.push(id);
     }
@@ -382,6 +388,12 @@ export class InteractionController {
     this.searchIndex = -1;
     this.searchResults.setAttribute('aria-activedescendant', '');
     this.searchInput.setAttribute('aria-activedescendant', '');
+  }
+
+  /** Un resultado del mapa se selecciona; uno externo se abre en Obsidian (no tiene nodo). */
+  _abrirResultado(n) {
+    if (n && n.externo) { if (typeof this.onOpen === 'function') this.onOpen(n.id, 'externo'); return; }
+    this.select(value(n && n.id), 'nodo');
   }
 
   _searchKey(event) {
@@ -399,7 +411,8 @@ export class InteractionController {
     } else if (key === 'enter' && this.searchIndex >= 0) {
       if (typeof event.preventDefault === 'function') event.preventDefault();
       const id = this.searchOptions[this.searchIndex];
-      this.select(id, 'nodo');
+      const n = (this._resultados || []).find((r) => value(r.id) === id);
+      if (n) this._abrirResultado(n); else this.select(id, 'nodo');
       const optionId = this.searchResults.id + '-' + id.replace(/[^A-Za-z0-9_-]/g, '-');
       this.searchResults.setAttribute('aria-activedescendant', optionId);
       this.searchInput.setAttribute('aria-activedescendant', optionId);

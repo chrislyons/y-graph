@@ -26,6 +26,7 @@ import {
   enlacesDe,
   leerAjustes,
 } from './model/graph.js';
+import { buscarNodos, buscarFuera, pasaFiltro, coincide, palabrasBusqueda, textoBusqueda } from './model/search.js';
 import { GraphStore } from './model/store.js';
 import {
   normalizarEstado,
@@ -83,6 +84,12 @@ const testApi = {
   inventarioFuentes,
   enlacesDe,
   leerAjustes,
+  buscarNodos,
+  buscarFuera,
+  pasaFiltro,
+  coincide,
+  palabrasBusqueda,
+  textoBusqueda,
   normalizarEstado,
   aplicarFiltros,
   metricas,
@@ -140,6 +147,12 @@ export {
   inventarioFuentes,
   enlacesDe,
   leerAjustes,
+  buscarNodos,
+  buscarFuera,
+  pasaFiltro,
+  coincide,
+  palabrasBusqueda,
+  textoBusqueda,
   GraphStore,
   normalizarEstado,
   aplicarFiltros,

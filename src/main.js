@@ -73,6 +73,7 @@
 import { Plugin, ItemView, PluginSettingTab, Setting, Modal, Notice, Platform, debounce, requestUrl, normalizePath } from 'obsidian';
 import { T, enEspanol } from './i18n.js';
 import { leerAjustes, carpetasFuentesDe } from './model/graph.js';
+import { buscarFuera } from './model/search.js';
 import {
   PARRAFOS_RECORDADOS, comoPatron, claveAlias, nombreNota, normalizarCita, citaEnTexto,
   insertarEnSeccion, fatal, limitesIngestaPor, armarTandas, prepararPiezas, esperaPedida,
@@ -440,6 +441,7 @@ class VistaMapa extends ItemView {
     const tema = this.plugin.ajustes.temaVisual === 'noche' ? 'noche' : 'tema';
     this.estado.temaVisual = tema;
     this.contentEl?.setAttribute?.('data-mn-theme', tema);
+    if (this.renderer) this.renderer.preferencias.animacion = this.plugin.ajustes.animacion === true;
     if (this.leyenda) this.leyenda.hidden = this.plugin.ajustes.mostrarLeyenda === false;
     if (this.ayuda && this.workbenchToolbar) {
       this.ayuda.hidden = this.plugin.ajustes.mostrarAyuda !== true;
@@ -481,6 +483,7 @@ class VistaMapa extends ItemView {
       preferencias: {
         ordenCapas: this.plugin.ajustes.ordenCapas,
         profundidadRadial: this.plugin.ajustes.profundidadRadial,
+        animacion: this.plugin.ajustes.animacion === true,
         mobile: Platform.isPhone,
         pointerDown: false,
         wheelUntil: 0,
@@ -555,6 +558,7 @@ class VistaMapa extends ItemView {
       onFit: () => this.encuadrar(),
       onHover: (id) => this.resaltarHover(id),
       onSearch: (filtro) => { this.estado.filtro = filtro; this.adoptarEstado(this.estado); },
+      buscarFuera: (q) => buscarFuera(this.app, new Set((this.datos.nodos || []).map((n) => n.id)), q),
       onPan: ({ camera }) => this.moverCamara(camera),
       onZoom: (k) => this.moverCamara({ ...this.estado.camara, k }),
       onLongPress: (id, tipo) => {
@@ -650,6 +654,7 @@ class VistaMapa extends ItemView {
     this.estado = estado;
     const filtrado = resultado || aplicarFiltros(this.datos, estado);
     this.visibles = new Set(filtrado.visibles);
+    this.aplicarTopePorCapa();
     if (this.plugin.ajustes.fuentes === 'demanda') {
       const selected = estado.seleccion;
       const vecinos = selected ? new Set(vecindades(this.datos, selected, 1).ids) : new Set();
@@ -672,6 +677,51 @@ class VistaMapa extends ItemView {
   }
   renderNow() {
     if (!this.cerrada) this.renderer?.render(this.tiempo);
+  }
+
+  // Revelado progresivo: cada capa muestra sus notas más conectadas; las demás aparecen al
+  // buscarlas o al enfocarlas. En pantalla angosta el tope baja a lo que cabe a 13 px por nota
+  // (73 nodos en la altura de un teléfono eran puntos pegados). [1.33] El tope se mide con el
+  // tamaño real de la escena: la primera carga corría antes de medir y en el teléfono mostraba
+  // las 83 notas.
+  topePorCapa() {
+    const { width, height } = this.viewportSize();
+    const angosto = Platform.isPhone || width < 640;
+    const cabe = angosto && height ? Math.max(12, Math.floor((height - 230) / 13)) : Infinity;
+    return Math.min(cabe, Math.max(10, Number(this.plugin.ajustes.maxPorCapa) || 150));
+  }
+
+  // Entre lo que ya dejaron visibles los filtros, recorta cada capa a su tope (por grado) y
+  // cuenta lo oculto. Las fuentes bajo demanda no ocupan lugar ni cuentan como ocultas; una nota
+  // enfocada, seleccionada o en la ruta sigue visible aunque toque el tope (la ve el renderizador).
+  aplicarTopePorCapa() {
+    this.ocultas = {};
+    const tope = this.topePorCapa();
+    const demanda = this.plugin.ajustes.fuentes === 'demanda';
+    const porCapa = new Map();
+    for (const n of this.datos.nodos || []) {
+      if (!this.visibles.has(n.id) || (demanda && n.fuente)) continue;
+      if (!porCapa.has(n.capa)) porCapa.set(n.capa, []);
+      porCapa.get(n.capa).push(n);
+    }
+    for (const [capa, columna] of porCapa) {
+      const orden = new Map((this.datos.nodos || []).map((n, i) => [n.id, i]));
+      const rango = columna.slice().sort((a, b) => (b.grado || 0) - (a.grado || 0) || (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0));
+      let ocultas = 0;
+      for (let i = tope; i < rango.length; i++) { this.visibles.delete(rango[i].id); ocultas++; }
+      this.ocultas[capa] = ocultas;
+    }
+  }
+
+  // Zona de la escena libre de barras: la barra de herramientas vive FUERA del lienzo (arriba),
+  // la leyenda y el zoom penden del pie, y en el teléfono el inspector es una hoja inferior de
+  // min(58vh, 560px). Una nota enfocada tiene que caber ahí, no debajo de la hoja.
+  areaSegura() {
+    const { width, height } = this.viewportSize();
+    const movil = Platform.isPhone || width < 640;
+    let abajo = height - 50;
+    if (movil) abajo = Math.min(abajo, height - Math.min(0.58 * height, 560) - 16);
+    return { arriba: 8, abajo: Math.max(32, abajo), izq: 8, der: Math.max(32, width - 8) };
   }
 
   /**
@@ -727,8 +777,11 @@ class VistaMapa extends ItemView {
       const node = this.renderer.scene.nodes.find((item) => item.id === id);
       const size = this.viewportSize();
       if (node) {
+        // El centro vertical cae en el aire libre de la escena (leyenda/zoom abajo; en el
+        // teléfono, encima de la hoja del inspector): enfocar no esconde la nota bajo el panel.
+        const area = this.areaSegura();
         this.estado.camara.x = size.width * 0.42 - node.x * this.estado.camara.k;
-        this.estado.camara.y = size.height * 0.5 - node.y * this.estado.camara.k;
+        this.estado.camara.y = (area.arriba + area.abajo) / 2 - node.y * this.estado.camara.k;
         this.adoptarEstado(this.estado);
       }
     }
@@ -778,11 +831,16 @@ class VistaMapa extends ItemView {
     if (!scene) return;
     const b = scene.bounds || { minX: 0, minY: 0, maxX: size.width, maxY: size.height };
     const reserve = Number(this.inspectorWorkbench?.width) || 0;
+    // Márgenes explícitos: 40 px a los lados y arriba, y 60 abajo para que la leyenda y los
+    // botones de zoom no queden encima de las notas al encuadrar.
+    const padIzq = 40, padDer = 40, padArr = 40, padAbajo = 60;
     const width = Math.max(1, size.width - (Platform.isPhone ? 0 : reserve));
     const height = Math.max(1, size.height);
     const spanX = Math.max(1, b.maxX - b.minX), spanY = Math.max(1, b.maxY - b.minY);
-    const k = Math.max(0.3, Math.min(6, Math.min(width / (spanX + 80), height / (spanY + 80))));
-    this.estado.camara = { x: width / 2 - ((b.minX + b.maxX) / 2) * k, y: height / 2 - ((b.minY + b.maxY) / 2) * k, k };
+    const k = Math.max(0.3, Math.min(6, Math.min((width - padIzq - padDer) / spanX, (height - padArr - padAbajo) / spanY)));
+    const cx = (padIzq + width - padDer) / 2;
+    const cy = (padArr + height - padAbajo) / 2;
+    this.estado.camara = { x: cx - ((b.minX + b.maxX) / 2) * k, y: cy - ((b.minY + b.maxY) / 2) * k, k };
     this.adoptarEstado(this.estado);
   }
 
@@ -940,6 +998,11 @@ class VistaMapa extends ItemView {
       });
       if (resultado.paths.length) new Notice(T('Datos guardados en {0}', resultado.paths.join(' · ')));
     } catch { /* exportarVista ya informa los archivos que quedaron guardados. */ }
+  }
+
+  abrirSeleccion(id, tipo = 'nodo') {
+    if (tipo === 'arista' || !id) return;
+    this.abrirNota(id);
   }
 
   abrirNota(ruta, linea) {

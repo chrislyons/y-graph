@@ -1,5 +1,4 @@
 const DOS_PI = Math.PI * 2;
-const PASO_ANILLO = 112;
 
 const natural = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
@@ -107,6 +106,7 @@ function prepararNodos(grafo) {
       salud: nodo && (nodo.salud || nodo.health),
       sinMotivo: Math.max(0, Number(nodo && nodo.sinMotivo) || 0),
       propio: nodo ? nodo.propio !== false : false,
+      alias: Array.isArray(nodo && nodo.alias) ? nodo.alias : [],
       rota: !!(nodo && (nodo.rota || nodo.rotten || (nodo.fuente && nodo.fuente.rota))),
       grave: !!(nodo && nodo.grave),
       oculto: !!(nodo && nodo.oculto),
@@ -224,7 +224,7 @@ function unirLimites(destino, limites) {
   destino.maxY = Math.max(destino.maxY, limites.maxY);
 }
 
-function puntosCurva(a, b, tipo, centro) {
+export function puntosCurva(a, b, tipo, centro) {
   if (tipo === 'radial' && centro) {
     const mx = (a.x + b.x) / 2;
     const my = (a.y + b.y) / 2;
@@ -401,8 +401,13 @@ export function layoutRadial(grafo, foco, viewport, opciones = {}) {
   const profundidad = Math.max(1, Math.min(4, Number(opciones.profundidad) || 2));
   const focus = elegirFoco(preparado, foco);
   const bfsResult = focus ? bfs(preparado, focus, profundidad) : { distancia: new Map(), padre: new Map(), cola: [] };
+  // [1.33] Los anillos caben entre el borde de arriba y la franja de leyenda/zoom de abajo: antes
+  // el centro quedaba a media altura y el anillo exterior se cortaba contra el pie de la escena.
+  const movil = !!opciones.mobile || width < 640;
+  const arriba = 24, abajo = height - (movil ? 70 : 44);
   const cx = width / 2;
-  const cy = height / 2;
+  const cy = (arriba + abajo) / 2;
+  const maxR = Math.max(60, Math.min((abajo - arriba) / 2, width / 2 - 20));
   const angle = new Map();
   const nodes = [];
   const rings = [];
@@ -415,11 +420,14 @@ export function layoutRadial(grafo, foco, viewport, opciones = {}) {
     centro.y = cy;
     centro.order = 0;
     centro.layer = 0;
+    centro.dist = 0;
     centro.topic = centro.tema;
     angle.set(focus, 0);
     nodes.push(centro);
     rings.push({ depth: 0, d: 0, radio: 0, count: 1, ids: [focus], visibleIds: [focus], visibleCount: 1, omitted: 0 });
     anillos.push(rings[0]);
+    // Fase 1: armar cada anillo (con su tope de presupuesto) antes de calcular radios.
+    const armados = [];
     for (let depth = 1; depth <= profundidad; depth++) {
       const ring = preparado.nodos.filter((nodo) => bfsResult.distancia.get(nodo.id) === depth);
       ring.sort((a, b) => (preparado.topics.get(a.tema) ?? 999999) - (preparado.topics.get(b.tema) ?? 999999)
@@ -438,7 +446,15 @@ export function layoutRadial(grafo, foco, viewport, opciones = {}) {
         ring.forEach((nodo) => { if (!keep.has(nodo.id)) omitted.add(nodo.id); });
         visibleRing = ring.filter((nodo) => keep.has(nodo.id));
       }
-      const radio = PASO_ANILLO * depth * (1 + Math.min(0.6, total / 90));
+      armados.push({ depth, ring, visibleRing, total });
+    }
+    // Fase 2: radios proporcionales al ancho/alto, escalados para que el exterior no se salga.
+    const paso = Math.min(width, height) * (movil ? 0.15 : 0.16);
+    const crudos = armados.map(({ depth, total }) => paso * depth * (1 + Math.min(0.6, total / 90)));
+    const escalaR = Math.min(1, maxR / Math.max(...crudos, 1));
+    // Fase 3: posicionar. Cada nodo guarda su distancia al foco (la usan los pulsos y el panel).
+    armados.forEach(({ depth, ring, visibleRing, total }, i) => {
+      const radio = crudos[i] * escalaR;
       ring.forEach((nodo, order) => {
         const a = (order / total) * DOS_PI - Math.PI / 2;
         angle.set(nodo.id, a);
@@ -446,6 +462,7 @@ export function layoutRadial(grafo, foco, viewport, opciones = {}) {
         nodo.y = cy + Math.sin(a) * radio;
         nodo.order = order;
         nodo.layer = depth;
+        nodo.dist = depth;
         nodo.topic = nodo.tema;
         nodes.push(nodo);
       });
@@ -457,7 +474,7 @@ export function layoutRadial(grafo, foco, viewport, opciones = {}) {
       };
       rings.push(metadata);
       anillos.push(metadata);
-    }
+    });
   }
   const edges = crearAristas(preparado, 'radial', focus ? preparado.porId.get(focus) : null);
   const orderedIds = [focus, ...rings.slice(1).flatMap((ring) => ring.ids)].filter(Boolean);
