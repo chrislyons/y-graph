@@ -318,6 +318,7 @@ const estadoNormalEsperado = {
   soloLargoAlcance: false,
   colapsados: [],
   seleccion: null,
+  sobre: null,
   ruta: [],
   panel: null,
   temaVisual: 'tema',

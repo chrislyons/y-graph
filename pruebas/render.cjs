@@ -177,6 +177,36 @@ const exportFrame = renderer.frameForExport({ width: 640, height: 480, dpr: 2, m
 p.igual('frameForExport devuelve un canvas fresco con dimensiones lógicas', [exportFrame.width, exportFrame.height, exportFrame.canvas.width, exportFrame.canvas.height], [640, 480, 1280, 960]);
 p.cierto('frameForExport no reemplaza las capas internas', renderer._backgroundCanvas === creados[0] && renderer._foregroundCanvas === creados[1]);
 p.igual('no existe una cola duplicada de frames', renderer._pendingFrames, 0);
+
+// Frames limpios: nada de colocación de etiquetas ni trabajos O(nodos) sin cambios.
+renderer.setGraph(datosCapas, estadoInicial);
+renderer.render(9000);
+const placementsLimpios = renderer.scene.labelPlacements;
+renderer.render(9001);
+p.cierto('un frame sin cambios no vuelve a colocar etiquetas', renderer.scene.labelPlacements === placementsLimpios);
+
+// setCamera: la cámara no cambia visibilidad ni prioridades, solo repinta.
+const visiblesAntes = [...renderer._visibleIds].sort();
+renderer.setCamera({ ...estadoInicial, capas: [0], camara: { x: 40, y: 0, k: 1 } });
+p.igual('setCamera no recalcula la visibilidad aunque el estado traiga filtros', [...renderer._visibleIds].sort(), visiblesAntes);
+p.cierto('setCamera marca ambas capas para repintar', renderer._dirtyBackground === true && renderer._dirtyForeground === true);
+renderer.render(9002);
+p.cierto('setCamera recoloca las etiquetas por el cambio de cámara', renderer.scene.labelPlacements !== placementsLimpios);
+const placementsTrasCamara = renderer.scene.labelPlacements;
+renderer.render(9003);
+p.cierto('y el siguiente frame vuelve a quedar limpio', renderer.scene.labelPlacements === placementsTrasCamara && !renderer._dirtyBackground && !renderer._dirtyForeground);
+
+// setHighlight (hover): enciende nodo/enlaces/etiqueta sin tocar la visibilidad.
+const hoverVisibles = [...renderer._visibleIds].sort();
+renderer.setHighlight({ ...estadoInicial, sobre: 'b2', capas: [0] });
+p.igual('setHighlight no recalcula la visibilidad', [...renderer._visibleIds].sort(), hoverVisibles);
+p.igual('setHighlight reprioriza la etiqueta del nodo hover', renderer._orderedLabels[0] && renderer._orderedLabels[0].id, 'b2');
+const aristaSobre = renderer.scene.edges.find((edge) => edge.a === 'b2' || edge.b === 'b2');
+const aristaAjena = renderer.scene.edges.find((edge) => edge.a !== 'b2' && edge.b !== 'b2');
+p.igual('los enlaces del nodo hover se encienden en accent',
+  [renderer._edgeColor(aristaSobre), renderer._edgeColor(aristaAjena)],
+  [renderer.paleta.accent, renderer.paleta.edge]);
+
 renderer.destroy();
 p.igual('destroy libera contexts, canvases y escena', [renderer.canvas, renderer.ctx, renderer.scene, renderer._backgroundCanvas,renderer._foregroundCanvas], [null, null, null, null, null]);
 global.Path2D = anterioresPath;

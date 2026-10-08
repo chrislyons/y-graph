@@ -55,6 +55,7 @@ export class InteractionController {
     this.onCenter = options.onCenter || null;
     this.onFit = options.onFit || null;
     this.onSearch = options.onSearch || null;
+    this.onHover = options.onHover || null;
     this.onPan = options.onPan || null;
     this.onZoom = options.onZoom || null;
     this.onLongPress = options.onLongPress || null;
@@ -132,6 +133,7 @@ export class InteractionController {
   _bind() {
     this._listen(this.canvas, 'pointerdown', (e) => this._pointerDown(e));
     this._listen(this.canvas, 'pointermove', (e) => this._pointerMove(e));
+    this._listen(this.canvas, 'pointerleave', () => this._hoverClear());
     this._listen(this.canvas, 'pointerup', (e) => this._pointerUp(e));
     this._listen(this.canvas, 'pointercancel', (e) => this._pointerCancel(e));
     this._listen(this.canvas, 'wheel', (e) => this._wheel(e), { passive: false });
@@ -237,7 +239,7 @@ export class InteractionController {
   }
 
   _pointerMove(event) {
-    if (!this._gesture) return;
+    if (!this._gesture) { this._hover(event); return; }
     const p = point(event, this.canvas);
     const pointerId = event && event.pointerId != null ? event.pointerId : 0;
     if (this._pointers.has(pointerId)) this._pointers.set(pointerId, p);
@@ -252,8 +254,28 @@ export class InteractionController {
     if (Math.hypot(p.x - g.start.x, p.y - g.start.y) > 4) { g.moved = true; this._clearLongPress(); }
     g.last = p;
     this.estado.camara.x += dx; this.estado.camara.y += dy;
-    this._render();
+    this._renderCamera();
     if (typeof this.onPan === 'function') this.onPan({ dx, dy, camera: this.estado.camara });
+  }
+
+  /** Resalta el nodo bajo el cursor del ratón (solo mouse, sin gesto activo). */
+  _hover(event) {
+    if (this._destroyed || !this.canvas) return;
+    if (event && event.pointerType && event.pointerType !== 'mouse') return;
+    const p = point(event, this.canvas);
+    const hit = this.renderer && typeof this.renderer.hitTest === 'function' ? this.renderer.hitTest(p.x, p.y) : null;
+    this._applyHover(hit && hit.tipo === 'nodo' ? hit.id : null);
+  }
+
+  _hoverClear() { this._applyHover(null); }
+
+  _applyHover(id) {
+    const next = id == null || id === '' ? null : String(id);
+    if ((this.estado.sobre || null) === next) return;
+    this.estado.sobre = next;
+    if (this.canvas && this.canvas.classList && typeof this.canvas.classList.toggle === 'function') this.canvas.classList.toggle('mn-sobre-nodo', !!next);
+    if (typeof this.onHover === 'function') this.onHover(next);
+    else this._render();
   }
 
   _pointerUp(event) {
@@ -281,11 +303,19 @@ export class InteractionController {
   _zoom(factor) {
     const camera = this.estado.camara;
     camera.k = clamp(camera.k * factor, 0.3, 6);
-    this._render();
+    this._renderCamera();
     if (typeof this.onZoom === 'function') this.onZoom(camera.k);
   }
 
   _render() { if (this.renderer && typeof this.renderer.setGraph === 'function') this.renderer.setGraph(this.datos, this.estado); if (this.renderer && typeof this.renderer.invalidate === 'function') this.renderer.invalidate(); }
+
+  /** Pan/zoom de teclado o puntero: la cámara no cambia visibilidad ni prioridades. */
+  _renderCamera() {
+    if (!this.renderer) return;
+    if (typeof this.renderer.setCamera === 'function') { this.renderer.setCamera(this.estado); return; }
+    if (typeof this.renderer.setGraph === 'function') this.renderer.setGraph(this.datos, this.estado);
+    if (typeof this.renderer.invalidate === 'function') this.renderer.invalidate();
+  }
 
   _key(event) {
     const key = eventKey(event);
@@ -303,10 +333,10 @@ export class InteractionController {
       if (key === 'arrowright') this.estado.camara.x += step;
       if (key === 'arrowup') this.estado.camara.y -= step;
       if (key === 'arrowdown') this.estado.camara.y += step;
-      this._render();
+      this._renderCamera();
     } else if (key === '+' || key === '=') this._zoom(1.2);
     else if (key === '-') this._zoom(1 / 1.2);
-    else if (key === 'f') { if (typeof this.onFit === 'function') this.onFit(); else { this.estado.camara = { x: 0, y: 0, k: 1 }; this._render(); } }
+    else if (key === 'f') { if (typeof this.onFit === 'function') this.onFit(); else { this.estado.camara = { x: 0, y: 0, k: 1 }; this._renderCamera(); } }
     else if (key === 'enter' && this._active) { if (typeof this.onOpen === 'function') this.onOpen(this._active, 'nodo'); }
     else if (key === ' ' && this._active) { if (typeof this.onCenter === 'function') this.onCenter(this._active); }
     else if (key === '/' && this.searchInput) { if (typeof this.searchInput.focus === 'function') this.searchInput.focus(); }

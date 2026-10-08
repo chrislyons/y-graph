@@ -81,7 +81,7 @@ Date.now = () => 20;
     modo: 'radial', camara: { x: -4, y: 8, k: 6 }, filtro: 'busqueda',
     temas: ['rojo'], capas: [0, 1], rangoGrado: { min: 0, max: 3 },
     actividadDias: 90, soloExternas: true, soloLargoAlcance: true,
-    colapsados: ['rojo'], seleccion: 'b', ruta: [], panel: 'salud', temaVisual: 'noche',
+    colapsados: ['rojo'], seleccion: 'b', sobre: null, ruta: [], panel: 'salud', temaVisual: 'noche',
   });
   p.igual('los filtros puros usan el mismo estado y no mutan el grafo', [aplicarFiltros(datos, { ...estado, filtro: '', actividadDias: 0, soloExternas: false, soloLargoAlcance: false }).visibles.size, datos.nodos.length], [1, 2]);
   p.igual('VistaMapa conserva su contrato público getState/setState', typeof VistaMapa.prototype.getState, 'function');

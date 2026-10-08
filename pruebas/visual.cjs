@@ -227,6 +227,32 @@ const BEHAVIOR = String.raw`<script>
       if (hit && hit.tipo === 'nodo' && x >= 0 && y >= 0 && x <= v.viewportSize().width && y <= v.viewportSize().height) nodePoint = { x, y };
     }
   }
+  let hoverPoint = null, hoverId = null;
+  {
+    const camera = v.renderer._camera();
+    const maxX = v.viewportSize().width, maxY = v.viewportSize().height;
+    for (const node of v.renderer.scene.nodes) {
+      if (!v.renderer._visibleIds.has(node.id)) continue;
+      const x = node.x * camera.k + camera.x;
+      const y = node.y * camera.k + camera.y;
+      if (!(x >= 0 && y >= 0 && x <= maxX && y <= maxY)) continue;
+      const hit = v.renderer.hitTest(x, y);
+      if (hit && hit.tipo === 'nodo') { hoverPoint = { x, y }; hoverId = hit.id; break; }
+    }
+  }
+  if (hoverPoint) {
+    const canvas = v.lienzo;
+    const rect = canvas.getBoundingClientRect();
+    canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 2, pointerType: 'mouse', isPrimary: true, button: -1, buttons: 0, clientX: rect.left + hoverPoint.x, clientY: rect.top + hoverPoint.y }));
+    gate('node-hover', String(v.getState().sobre) === String(hoverId) && canvas.classList.contains('mn-sobre-nodo'),
+      'sobre=' + v.getState().sobre + ', clase=' + canvas.classList.contains('mn-sobre-nodo') + ', hit=' + hoverId);
+    mark('hover → resaltado');
+    canvas.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, pointerId: 2, pointerType: 'mouse' }));
+    gate('node-hover-clear', v.getState().sobre == null, 'sobre tras salir=' + v.getState().sobre);
+  } else {
+    gate('node-hover', false, 'ningún nodo visible es alcanzable por el puntero');
+    gate('node-hover-clear', false, 'sin punto de hover no hay salida que limpiar');
+  }
   if (nodePoint) pointerAt(nodePoint.x, nodePoint.y);
   const reasonText = v.inspectorWorkbench.content.textContent || '';
   gate('node-pointer-reason', String(v.getState().seleccion) === String(targetId) && /Motivos y frases/.test(reasonText) && !!v.inspectorWorkbench.content.querySelector('li'), 'selección=' + v.getState().seleccion + ', título=' + (targetNode && targetNode.titulo) + ', point=' + JSON.stringify(nodePoint) + ', active=' + v.interaccion._active + ', inspector=' + reasonText.slice(0, 80));
@@ -466,7 +492,7 @@ try {
   const d = result.diagnostics;
   console.error('visual diagnostics:', JSON.stringify(d));
   console.log('visual: contrato DOM, Canvas, tablas y secuencia de interacciones');
-  for (const id of ['title', 'toolbar', 'canvas-aria', 'group-aria', 'live-region', 'node-listbox', 'button-names', 'table-companion', 'table-headers', 'node-pointer-reason', 'edge-pointer-reason', 'search-focus', 'keyboard', 'theme-switch', 'health-gaps', 'radial-depth', 'save-restore', 'export']) {
+  for (const id of ['title', 'toolbar', 'canvas-aria', 'group-aria', 'live-region', 'node-listbox', 'button-names', 'table-companion', 'table-headers', 'node-hover', 'node-hover-clear', 'node-pointer-reason', 'edge-pointer-reason', 'search-focus', 'keyboard', 'theme-switch', 'health-gaps', 'radial-depth', 'save-restore', 'export']) {
     const gate = d.gates && d.gates[id];
     console.log('  ' + (gate && gate.passed ? '✓' : '✕') + ' ' + id + (gate && gate.detail ? ' — ' + gate.detail : ''));
   }

@@ -25,7 +25,7 @@ const base = normalizarEstado(null, { datos: DATOS });
 p.igual('estado vacío limpio', base, {
   modo: 'capas', camara: { x: 0, y: 0, k: 1 }, filtro: '', temas: [], capas: [],
   rangoGrado: { min: 0, max: null }, actividadDias: 0, soloExternas: false,
-  soloLargoAlcance: false, colapsados: [], seleccion: null, ruta: [], panel: null,
+  soloLargoAlcance: false, colapsados: [], seleccion: null, sobre: null, ruta: [], panel: null,
   temaVisual: 'tema',
 });
 p.cierto('el estado per-view no contiene la preferencia de fuentes', !Object.hasOwn(base, 'fuentes'));

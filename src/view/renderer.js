@@ -184,6 +184,24 @@ export class GraphRenderer {
     return this;
   }
 
+  /** Solo cambia la cámara: ni la visibilidad ni el orden de etiquetas dependen de ella. */
+  setCamera(estado = {}) {
+    if (this._destroyed) return this;
+    this.estado = { ...this.estado, ...(estado || {}) };
+    if (this.scene) { this._dirtyBackground = true; this._dirtyForeground = true; }
+    return this;
+  }
+
+  /** Cambia el resaltado (hover) sin recalcular la visibilidad: reprioriza etiquetas y repinta. */
+  setHighlight(estado = {}) {
+    if (this._destroyed) return this;
+    this.estado = { ...this.estado, ...(estado || {}) };
+    this._sortLabels();
+    this._dirtyBackground = true;
+    this._dirtyForeground = true;
+    return this;
+  }
+
   invalidate() {
     this._dirtyBackground = true;
     this._dirtyForeground = true;
@@ -197,13 +215,14 @@ export class GraphRenderer {
     const low = this._isLowDetail(stamp);
     if (this._lastLowDetail !== null && this._lastLowDetail !== low) this._dirtyBackground = true;
     this._lastLowDetail = low;
-    this._prepareFrame(low);
     const pixelWidth = Math.max(1, Math.round(this.viewport.width * this.viewport.dpr));
     const pixelHeight = Math.max(1, Math.round(this.viewport.height * this.viewport.dpr));
-    this._resizeCanvas(this.canvas, pixelWidth, pixelHeight);
+    const resized = this._resizeCanvas(this.canvas, pixelWidth, pixelHeight);
     const layers = this._ensureOffscreen(pixelWidth, pixelHeight);
+    // Un frame sin cambios no vuelve a colocar etiquetas: colocar cuesta O(nodos) con colisiones.
+    if (this._dirtyBackground || this._dirtyForeground) this._prepareFrame(low);
     if (!layers) {
-      this._drawScene(this.ctx, { low, direct: true, presentation: false });
+      if (this._dirtyBackground || this._dirtyForeground || resized) this._drawScene(this.ctx, { low, direct: true, presentation: false });
       return;
     }
     if (this._dirtyBackground) {
@@ -463,7 +482,7 @@ export class GraphRenderer {
       const x = layer.x * camera.k + camera.x;
       const y = (layer.y0 - 14) * camera.k + camera.y;
       const text = layer.nombre || layer.name || String(layer.indice + 1);
-      const w = medida(this.medirTexto, text, font) + 8;
+      const w = this._measure(text, font) + 8;
       const rect = { x: x - 4, y: y - 14, w, h: ETIQUETA_ALTO };
       if (esRectanguloVisible(rect, 0, 0, right, bottom, 0.7)) occupied.push(rect);
     }
@@ -521,6 +540,20 @@ export class GraphRenderer {
     return true;
   }
 
+  /** medirText() es caro; el texto de las etiquetas es estable, así que se cachea. */
+  _measure(text, font) {
+    const key = `${font}\u0000${text}`;
+    let cache = this._measureCache;
+    if (!cache) cache = this._measureCache = new Map();
+    let width = cache.get(key);
+    if (width === undefined) {
+      width = medida(this.medirTexto, text, font);
+      if (cache.size > 4000) cache.clear();
+      cache.set(key, width);
+    }
+    return width;
+  }
+
 
   _sortLabels() {
     this._orderedLabels.sort((a, b) => this._labelPriority(a) - this._labelPriority(b)
@@ -530,6 +563,7 @@ export class GraphRenderer {
   _labelPriority(candidate) {
     const state = this.estado || {};
     if (texto(state.seleccion) === candidate.id) return 0;
+    if (texto(state.sobre) === candidate.id) return 1;
     if (this._pathIds.has(candidate.id)) return 1;
     if (texto(state.foco) === candidate.id || texto(state.focoTeclado) === candidate.id || this.scene.focus === candidate.id) return 2;
     if (this._searchIds.has(candidate.id)) return 3;
@@ -541,7 +575,7 @@ export class GraphRenderer {
   _candidateRects(candidate, node, camera) {
     const x = node.x * camera.k + camera.x;
     const y = node.y * camera.k + camera.y;
-    const w = medida(this.medirTexto, candidate.title, '12px system-ui, sans-serif');
+    const w = this._measure(candidate.title, '12px system-ui, sans-serif');
     const h = ETIQUETA_ALTO;
     const r = node.radio * camera.k + ETIQUETA_ESPACIO;
     const rects = this._rectPool;
@@ -591,9 +625,11 @@ export class GraphRenderer {
   }
 
   _resizeCanvas(canvas, width, height) {
-    if (!canvas) return;
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
+    if (!canvas) return false;
+    let changed = false;
+    if (canvas.width !== width) { canvas.width = width; changed = true; }
+    if (canvas.height !== height) { canvas.height = height; changed = true; }
+    return changed;
   }
 
   _composite(ctx, layers, width, height) {
@@ -628,13 +664,15 @@ export class GraphRenderer {
       this._edgeDash[1] = 4 / camera.k;
       this._edgeDashK = camera.k;
     }
+    const sobre = texto(this.estado.sobre);
     for (const edge of this.scene.edges) {
       if (!this._edgeVisible(edge)) continue;
       if (!this._boundsOnScreen(edge.bounds, camera, width, height)) continue;
       const a = this._nodeById.get(edge.a);
       const b = this._nodeById.get(edge.b);
+      const encima = !!sobre && (edge.a === sobre || edge.b === sobre);
       if (ctx.strokeStyle !== undefined) ctx.strokeStyle = this._edgeColor(edge);
-      if (ctx.lineWidth !== undefined) ctx.lineWidth = 1.25 / camera.k;
+      if (ctx.lineWidth !== undefined) ctx.lineWidth = (encima ? 1.6 : 1.25) / camera.k;
       if (ctx.setLineDash) ctx.setLineDash(edge.motivo ? DASH_VACIO : this._edgeDash);
       this._strokeEdge(ctx, edge, a, b, options.low);
     }
@@ -697,6 +735,13 @@ export class GraphRenderer {
       if (typeof ctx.arc === 'function') ctx.arc(x, y, r + 4, 0, TAU);
       if (typeof ctx.stroke === 'function') ctx.stroke();
       if (unhealthy && ctx.setLineDash) ctx.setLineDash(DASH_VACIO);
+    }
+    if (texto(this.estado.sobre) === node.id) {
+      if (ctx.strokeStyle !== undefined) ctx.strokeStyle = this.paleta.accent;
+      if (ctx.lineWidth !== undefined) ctx.lineWidth = 1.5;
+      if (typeof ctx.beginPath === 'function') ctx.beginPath();
+      if (typeof ctx.arc === 'function') ctx.arc(x, y, r + 6, 0, TAU);
+      if (typeof ctx.stroke === 'function') ctx.stroke();
     }
     if (this._pathIds.has(node.id) || texto(this.estado.seleccion) === node.id) {
       if (ctx.strokeStyle !== undefined) ctx.strokeStyle = this.paleta.accent;
@@ -761,6 +806,8 @@ export class GraphRenderer {
   _edgeColor(edge) {
     if (this.estado.salud && !edge.motivo) return this.paleta.danger;
     if (this._pathIds.has(edge.a) || this._pathIds.has(edge.b)) return this.paleta.accent;
+    const sobre = texto(this.estado.sobre);
+    if (sobre && (edge.a === sobre || edge.b === sobre)) return this.paleta.accent;
     return this.paleta.edge;
   }
 

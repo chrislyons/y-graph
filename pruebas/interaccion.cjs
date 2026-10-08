@@ -62,9 +62,11 @@ const renderer = {
 const canvasParent = doc.createElement('div');
 const canvas = doc.createElement('canvas'); canvasParent.appendChild(canvas);
 let selection = null, opened = null, centered = null, fitted = 0, searched = null;
+const hovers = [];
 const controller = new InteractionController({
   canvas, renderer, document: doc, datos, estado: { camara: { x: 0, y: 0, k: 1 } },
   onSelect: (id, kind) => { selection = [id, kind]; }, onOpen: (id) => { opened = id; }, onCenter: (id) => { centered = id; }, onFit: () => { fitted++; }, onSearch: (q) => { searched = q; },
+  onHover: (id) => hovers.push(id),
 });
 p.igual('el canvas queda en un group con nombre', canvasParent.children[0].getAttribute('role'), 'group');
 p.igual('el canvas es focusable y descrito', [canvas.getAttribute('tabindex'), canvas.getAttribute('aria-label'), !!canvas.getAttribute('aria-describedby')], ['0', 'Graph explorer', true]);
@@ -102,5 +104,26 @@ p.igual('Escape limpia después la selección', controller.getState().seleccion,
 canvas.dispatch('keydown', { key: 'j', preventDefault() {} });
 canvas.dispatch('keydown', { key: 'k', preventDefault() {} });
 p.igual('j/k mantienen el orden estable', [controller._active, selection[0]], ['b', 'b']);
+
+// Hover: resaltado bajo el cursor del ratón (paridad con upstream 1.31).
+canvas.dispatch('pointermove', { pointerId: 7, clientX: 1, clientY: 1, pointerType: 'mouse' });
+p.igual('hover detecta el nodo bajo el cursor', [hovers[hovers.length - 1], controller.getState().sobre], ['a', 'a']);
+canvas.dispatch('pointermove', { pointerId: 7, clientX: 30, clientY: 1, pointerType: 'mouse' });
+p.igual('hover sigue al nodo', controller.getState().sobre, 'b');
+canvas.dispatch('pointermove', { pointerId: 7, clientX: 30, clientY: 90, pointerType: 'mouse' });
+p.igual('hover sobre una arista se limpia', [hovers[hovers.length - 1], controller.getState().sobre], [null, null]);
+const hoverSinCambios = hovers.length;
+canvas.dispatch('pointermove', { pointerId: 7, clientX: 30, clientY: 90, pointerType: 'mouse' });
+p.igual('sin cambio de nodo no se repite el hover', hovers.length, hoverSinCambios);
+canvas.dispatch('pointermove', { pointerId: 8, clientX: 1, clientY: 1, pointerType: 'touch' });
+p.igual('touch no dispara hover', [hovers.length, controller.getState().sobre], [hoverSinCambios, null]);
+canvas.dispatch('pointerdown', { pointerId: 10, clientX: 1, clientY: 1 });
+canvas.dispatch('pointermove', { pointerId: 10, clientX: 40, clientY: 50, pointerType: 'mouse' });
+canvas.dispatch('pointerup', { pointerId: 10, clientX: 40, clientY: 50 });
+p.igual('arrastrar no cambia el hover', [hovers.length, controller.getState().sobre], [hoverSinCambios, null]);
+canvas.dispatch('pointermove', { pointerId: 11, clientX: 1, clientY: 1, pointerType: 'mouse' });
+p.igual('el hover vuelve al entrar', controller.getState().sobre, 'a');
+canvas.dispatch('pointerleave', {});
+p.igual('pointerleave limpia el hover', [hovers[hovers.length - 1], controller.getState().sobre], [null, null]);
 
 process.exit(p.cerrar() ? 1 : 0);

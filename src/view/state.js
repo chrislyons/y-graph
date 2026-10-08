@@ -130,6 +130,7 @@ export function normalizarEstado(value, contexto = {}) {
   const modo = estado.modo === 'radial' ? 'radial' : 'capas';
   const panel = ['nota', 'salud', 'vacios', 'tabla'].includes(estado.panel) ? estado.panel : null;
   const seleccion = texto(estado.seleccion);
+  const sobre = texto(estado.sobre);
   return {
     modo,
     camara: normalizarCamara(estado.camara),
@@ -142,6 +143,7 @@ export function normalizarEstado(value, contexto = {}) {
     soloLargoAlcance: estado.soloLargoAlcance === true,
     colapsados: normalizarLista(estado.colapsados, temas),
     seleccion: seleccion && (!ids || ids.has(seleccion)) ? seleccion : null,
+    sobre: sobre && (!ids || ids.has(sobre)) ? sobre : null,
     ruta: normalizarRuta(estado.ruta, ids),
     panel,
     temaVisual: estado.temaVisual === 'noche' ? 'noche' : 'tema',

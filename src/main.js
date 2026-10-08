@@ -457,9 +457,10 @@ class VistaMapa extends ItemView {
       onOpen: (id, tipo) => this.abrirSeleccion(id, tipo),
       onCenter: (id) => this.enfocar(id, true),
       onFit: () => this.encuadrar(),
+      onHover: (id) => this.resaltarHover(id),
       onSearch: (filtro) => { this.estado.filtro = filtro; this.adoptarEstado(this.estado); },
-      onPan: ({ camera }) => { this.estado.camara = { ...camera }; this.adoptarEstado(this.estado); },
-      onZoom: (k) => { this.estado.camara.k = k; this.adoptarEstado(this.estado); },
+      onPan: ({ camera }) => this.moverCamara(camera),
+      onZoom: (k) => this.moverCamara({ ...this.estado.camara, k }),
       onLongPress: (id, tipo) => {
         const nodo = this.datos.nodos.find((n) => n.id === id);
         if (tipo === 'nodo' && nodo?.tema) this.alternarColapso(nodo.tema);
@@ -575,6 +576,37 @@ class VistaMapa extends ItemView {
   }
   renderNow() {
     if (!this.cerrada) this.renderer?.render(this.tiempo);
+  }
+
+  /**
+   * Pan/zoom: solo mueven la cámara. Pasar por adoptarEstado recalculaba filtros, diagnósticos
+   * de salud, el inspector y el listbox accesible en CADA mousemove — eso era la lag.
+   */
+  moverCamara(camera) {
+    if (this.cerrada) return;
+    this.estado.camara = {
+      x: Number(camera && camera.x) || 0,
+      y: Number(camera && camera.y) || 0,
+      k: Number(camera && camera.k) || 1,
+    };
+    const estado = this.rendererState();
+    if (this.renderer) {
+      if (typeof this.renderer.setCamera === 'function') this.renderer.setCamera(estado);
+      else this.renderer.setGraph(this.datos, estado);
+    }
+    this.renderNow();
+  }
+
+  /** Hover: enciende el nodo, sus enlaces y su etiqueta sin recalcular visibilidad. */
+  resaltarHover(id) {
+    if (this.cerrada) return;
+    this.estado.sobre = id || null;
+    const estado = this.rendererState();
+    if (this.renderer) {
+      if (typeof this.renderer.setHighlight === 'function') this.renderer.setHighlight(estado);
+      else this.renderer.setGraph(this.datos, estado);
+    }
+    this.renderNow();
   }
 
   render() { this.renderNow(); }
