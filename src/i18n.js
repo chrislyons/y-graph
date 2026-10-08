@@ -154,6 +154,20 @@ const EN = {
   'Compatible con OpenAI. Ollama usa http://localhost:11434/v1/chat/completions.': 'OpenAI-compatible. Ollama uses http://localhost:11434/v1/chat/completions.',
   'Modelo': 'Model',
   'nombre del modelo': 'model name',
+  // modelo: la lista en vivo del proveedor (1.34)
+  'gratis, con límite diario': 'free, with a daily limit',
+  'US${0} por millón': 'US${0} per million',
+  '— elige un modelo —': '— choose a model —',
+  'Otro: escribir el nombre…': 'Other: type the name…',
+  '{0} modelos que responden en el formato que pide Why Graph, del más barato al más caro (precio por millón de tokens de entrada). Los gratis van al final: tienen límite diario.':
+    '{0} models that answer in the format Why Graph needs, cheapest first (price per million input tokens). Free ones go last: they have a daily limit.',
+  '{0} modelos disponibles con tu llave.': '{0} models available with your key.',
+  '★ = probado con Why Graph.': '★ = tested with Why Graph.',
+  'Volver a cargar la lista': 'Reload the list',
+  'Cargando la lista de modelos…': 'Loading the list of models…',
+  'No se pudo cargar la lista ({0}). Escribe el nombre a mano.': 'Could not load the list ({0}). Type the name instead.',
+  'Pega la llave para elegir el modelo de una lista.': 'Paste the key to choose the model from a list.',
+  'Ver la lista': 'Show the list',
   'Medido con Claude Opus 5: 97,7 % de motivos correctos y 0 inventados en 50 conexiones. Con otros modelos los candados siguen; la precisión no está medida.':
     'Measured with Claude Opus 5: 97.7% correct reasons and 0 invented across 50 links. With other models the safeguards stay; accuracy is not measured.',
   'Segunda revisión': 'Second pass',
@@ -227,7 +241,11 @@ const EN = {
   'Escribe el identificador del modelo, como aparece en la documentación de OpenAI.': "Type the model identifier, as it appears in OpenAI's documentation.",
   'Crea la llave en aistudio.google.com. Tiene una capa gratuita con límites de uso.':
     'Create the key at aistudio.google.com. It has a free tier with usage limits.',
-  'Escribe el identificador del modelo, como aparece en la documentación de Gemini.': "Type the model identifier, as it appears in Gemini's documentation.",
+  'Escribe el identificador del modelo, como aparece en la documentación de Gemini.': 'Type the model identifier, as it appears in Gemini\'s documentation.',
+  'Crea la llave en openrouter.ai/keys. Una sola llave da acceso a modelos de Anthropic, Google, OpenAI y abiertos; los que terminan en «:free» no cuestan, con límite diario.':
+    'Create the key at openrouter.ai/keys. One key reaches models from Anthropic, Google, OpenAI and open ones; those ending in «:free» cost nothing, with a daily limit.',
+  'El identificador como aparece en openrouter.ai/models, con el proveedor delante: por ejemplo google/gemini-3.1-flash-lite.':
+    'The identifier as shown on openrouter.ai/models, with the provider in front: for example google/gemini-3.1-flash-lite.',
   'Gratis y sin enviar tus notas a internet. Necesitas Ollama o LM Studio corriendo en este computador. No funciona en el celular.':
     'Free, and your notes never leave your computer. You need Ollama or LM Studio running here. Not available on mobile.',
   'El nombre del modelo que descargaste, por ejemplo el que muestra «ollama list».': 'The name of the model you downloaded, as shown by "ollama list".',
@@ -394,7 +412,7 @@ const EN = {
   'advertencia': 'warning',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
-const enEspanol = () => {
+export const enEspanol = () => {
   if (_es === null) {
     let l = 'en';
     try { l = getLanguage() || 'en'; } catch { l = 'en'; } // fuera de Obsidian: inglés
