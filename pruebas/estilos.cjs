@@ -51,7 +51,9 @@ const tab = new AjustesMapa({}, plugin); tab.containerEl = el();
 const antes = JSON.stringify(plugin.ajustes);
 const definitions = tab.getSettingDefinitions();
 p.igual('getSettingDefinitions() no cambia el almacén de ajustes', JSON.stringify(plugin.ajustes), antes);
-const porClave = new Map(definitions.filter((item) => item.control).map((item) => [item.control.key, item.control]));
+// Grupos y páginas (1.32) llevan sus ajustes en items: se aplanan para revisarlos todos.
+const aplanar = (xs) => xs.flatMap((d) => (d.items ? aplanar(d.items) : [d]));
+const porClave = new Map(aplanar(definitions).filter((item) => item.control).map((item) => [item.control.key, item.control]));
 p.igual('las definiciones incluyen dropdown, slider y toggles de Step 9', {
   ordenCapas: porClave.get('ordenCapas')?.type,
   profundidadRadial: porClave.get('profundidadRadial')?.type,

@@ -82,11 +82,16 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   {
     const plD = new Plugin(); plD.app = app; plD.ajustes = Object.assign({}, AJUSTES); let guardado = 0; plD.guardar = async () => { guardado++; };
     const tab = new AjustesMapa(app, plD); tab.plugin = plD;
-    const defs = tab.getSettingDefinitions();
+    // Grupos y páginas (1.32) llevan sus ajustes en items: se aplanan para revisarlos todos.
+    const aplanar = (xs) => xs.flatMap((d) => (d.items ? aplanar(d.items) : [d]));
+    const grupos = tab.getSettingDefinitions();
+    const defs = aplanar(grupos);
     const claves = defs.filter((d) => d.control).map((d) => d.control.key);
     p.cierto('las definiciones cubren los ajustes principales', ['capas', 'carpetas', 'propiedadTema', 'fuentes', 'maxPorCapa', 'animacion', 'dobleVerificacion'].every((k) => claves.includes(k)));
     p.cierto('cada definición con control tiene nombre y tipo', defs.filter((d) => d.control).every((d) => d.name && d.control.type));
     p.cierto('la sección de IA va como render', defs.some((d) => typeof d.render === 'function'));
+    p.igual('en cuatro bloques: Mapa, IA (y su control), Novedades y la página Avanzado', grupos.map((g) => g.heading || (g.render ? 'IA' : g.name) || g.type), ['Map', 'IA', 'group', "What's new", 'Advanced']);
+    p.cierto('lo raro va en la página Avanzado', grupos.find((g) => g.type === 'page')?.items.some((d) => d.control?.key === 'excluir'));
     p.igual('lee de plugin.ajustes', tab.getControlValue('capas'), AJUSTES.capas);
     await tab.setControlValue('seccionMotivos', '  '); p.igual('sección vacía vuelve a Conexiones', plD.ajustes.seccionMotivos, 'Conexiones');
     await tab.setControlValue('maxPorCapa', '90'); p.igual('el tope se guarda como número', plD.ajustes.maxPorCapa, 90);

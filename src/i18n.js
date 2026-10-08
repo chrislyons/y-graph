@@ -82,6 +82,7 @@ const EN = {
   // ajustes
   'Los cambios se aplican al cerrar este panel o al tocar ⋯ herramientas y luego recargar el mapa.':
     'Changes apply when you close this panel, or from ⋯ tools → Reload the map.',
+  'Mapa': 'Map',
   'Capas': 'Layers',
   'Una por línea, de izquierda a derecha: «Nombre | descripción».': 'One per line, left to right: "Name | description".',
   'Carpetas → capa': 'Folders → layer',
@@ -95,7 +96,7 @@ const EN = {
   'Propiedad de tema': 'Topic property',
   'Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.': 'The frontmatter property that groups and colours notes. Empty = no topics.',
   'Mostrar fuentes citadas': 'Show cited sources',
-  'Las fuentes son los archivos de esas carpetas que tus notas citan por su ruta. «Bajo demanda»: aparecen al tocar la nota que las cita. «Todas»: siempre en la primera capa.': 'Sources are the files in those folders that your notes cite by path. "On demand": they appear when you tap the note that cites them. "All": always in the first layer.',
+  '«Bajo demanda»: aparecen al tocar la nota que las cita. «Todas»: siempre, en la primera capa.': '"On demand": they appear when you tap the note that cites them. "All": always, in the first layer.',
   'Bajo demanda': 'On demand',
   'Todas': 'All',
   'Carpetas de fuentes': 'Source folders',
@@ -105,8 +106,8 @@ const EN = {
   'Detecté un LLM wiki (index.md y log.md con entradas fechadas): las carpetas marcadas como fuentes se mostrarán bajo demanda.': 'An LLM wiki was detected (index.md and log.md with dated entries): the folders marked as sources will show on demand.',
   '{0} archivo(s)': '{0} file(s)',
   'Notas visibles por capa': 'Notes visible per layer',
-  'En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.':
-    'In large vaults each layer shows its most connected notes. The rest appear when you search for them or open them from the panel.',
+  'En vaults grandes, cada capa muestra sus notas más conectadas; las demás aparecen al buscarlas.':
+    'In large vaults, each layer shows its most connected notes; the rest appear when you search.',
   'Orden de las capas': 'Layer order',
   'Elige el orden de las notas dentro de cada capa.': 'Choose the order of notes within each layer.',
   'Automático': 'Automatic',
@@ -130,18 +131,18 @@ const EN = {
   'Seguir la nota activa': 'Follow the active note',
   'Al abrir una nota, el mapa la enfoca.': 'Opening a note focuses it on the map.',
   'Animación': 'Animation',
-  'Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.':
-    'Pulses of light travelling along the links. Only while the map is visible, and off if your system asks for reduced motion.',
+  'Pulsos de luz por los enlaces, solo con el mapa visible. Se apaga si el sistema pide menos movimiento.':
+    'Light pulses along the links, only while the map is visible. Off if the system asks for reduced motion.',
   'Carpeta para exportar imágenes': 'Folder for exported images',
   'Sección de conexiones': 'Connections section',
   'Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).':
     'The heading at the end of each note where approved reasons are written ("- [[note]] — reason").',
   'Conecta tu inteligencia artificial (opcional)': 'Connect your own AI (optional)',
-  'Para el botón de sugerir motivo. Usa tu propia llave de la API, se guarda solo en este dispositivo y no viaja por Sync ni por git. La IA propone; tú apruebas.':
-    'For the suggest-a-reason button. It uses your own API key, stored only on this device — it never travels through Sync or git. The AI proposes; you approve.',
+  'Tu propia llave de la API, guardada solo en este dispositivo (no viaja por Sync ni por git). La IA propone; tú apruebas.':
+    'Your own API key, stored only on this device (never synced or committed). The AI proposes; you approve.',
   'Proveedor': 'Provider',
-  'Elige con qué IA se generan los motivos y los resúmenes. Los controles de calidad (citas verificadas y tu aprobación) funcionan con todos.':
-    'Choose which AI writes the reasons and summaries. The quality locks (verified quotes and your approval) work with all of them.',
+  'Con qué IA se proponen motivos, resúmenes y novedades. Las citas verificadas y tu aprobación funcionan con todas.':
+    'Which AI proposes reasons, summaries and new items. Verified quotes and your approval work with all of them.',
   'Llave de la API': 'API key',
   'Guardada en este dispositivo. ': 'Stored on this device. ',
   'guardada': 'stored',
@@ -153,8 +154,8 @@ const EN = {
   'Compatible con OpenAI. Ollama usa http://localhost:11434/v1/chat/completions.': 'OpenAI-compatible. Ollama uses http://localhost:11434/v1/chat/completions.',
   'Modelo': 'Model',
   'nombre del modelo': 'model name',
-  'La calidad de los motivos se midió con Claude Opus 5: 97,7 % correctos y 0 inventados sobre 50 conexiones. Con otros modelos los candados siguen puestos (citas verificadas y tu aprobación), pero la precisión no está medida.':
-    'Reason quality was measured with Claude Opus 5: 97.7% correct and 0 invented over 50 connections. With other models the locks still apply (verified quotes and your approval), but the accuracy is unmeasured.',
+  'Medido con Claude Opus 5: 97,7 % de motivos correctos y 0 inventados en 50 conexiones. Con otros modelos los candados siguen; la precisión no está medida.':
+    'Measured with Claude Opus 5: 97.7% correct reasons and 0 invented across 50 links. With other models the safeguards stay; accuracy is not measured.',
   'Segunda revisión': 'Second pass',
   'Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.':
     'A second call checks the reason for faithfulness (negations, states, pending items). It costs twice as much and blocks errors of nuance.',
@@ -164,6 +165,30 @@ const EN = {
   'Restablecer': 'Reset',
   'Vuelve a los valores por defecto.': 'Back to the default values.',
   'Restablecer no borra la llave guardada en este dispositivo.': 'Reset does not delete the key stored on this device.',
+  // ajustes: sección Novedades (1.32)
+  'Novedades': "What's new",
+  'Carpeta del material sin procesar': 'Raw material folder',
+  'De dónde lee la ingesta: notas del día, capturas, transcripciones. Vacío = sin ingesta.': 'Where ingestion reads from: daily notes, clippings, transcripts. Empty = no ingestion.',
+  'Carpeta del wiki': 'Wiki folder',
+  'Dónde viven las páginas que la ingesta propone crear o actualizar. Vacío = sin ingesta.': 'Where the pages that ingestion proposes to create or update live. Empty = no ingestion.',
+  'Preparar novedades al abrir Obsidian': 'Prepare new items when Obsidian opens',
+  'Tu IA revisa el material nuevo en segundo plano. Apagado, solo se cuenta y nada sale de tu equipo.': 'Your AI reviews new material in the background. Off, it is only counted and nothing leaves your device.',
+  'Tope de llamadas automáticas al día': 'Daily limit of automatic calls',
+  'Si el material nuevo pide más, se espera a que lo revises a mano.': 'If new material needs more, it waits for you to review it by hand.',
+  'Permitir crear páginas': 'Allow creating pages',
+  'Apagado, la ingesta solo agrega a páginas que ya existen.': 'Off, ingestion only adds to pages that already exist.',
+  'Archivo de alias': 'Alias file',
+  'Opcional. Una nota con los otros nombres de tus páginas, para no crear la misma dos veces.': 'Optional. A note with the other names of your pages, so the same one is not created twice.',
+  'Ignorar en la ingesta': 'Ignore during ingestion',
+  'Copias y resúmenes que no hay que enviar. Separados por coma; * vale cualquier texto.': 'Copies and summaries that should not be sent. Comma-separated; * matches any text.',
+  'Carpeta de recortes': 'Clippings folder',
+  'Las notas sueltas en la raíz que nadie enlaza (del Web Clipper o del teléfono) se proponen para moverlas aquí. Vacío = no se ordena nada.':
+    'Loose notes in the vault root that nothing links to (from the Web Clipper or your phone) are offered to be moved here. Empty = nothing is filed.',
+  'Se quedan en la raíz': 'Stay in the root',
+  'Notas que nunca se proponen para mover. Separadas por coma; * vale cualquier texto.': 'Notes that are never offered to be moved. Comma-separated; * matches any text.',
+  // ajustes: página Avanzado (1.32)
+  'Avanzado': 'Advanced',
+  'Fuentes, exclusiones, exportar y propiedades del frontmatter.': 'Sources, exclusions, export and frontmatter properties.',
   // panel: títulos de los grupos de conexiones
   'Notas dentro': 'Notes inside',
   'fuente citada en la página': 'source cited in the page',
@@ -183,8 +208,8 @@ const EN = {
   'Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.':
     'Frontmatter properties holding web links, comma separated. Accepts "Title | https://…", "https://…" and "user/repo". Empty = not shown.',
   'Propiedad de fecha de modificación': 'Last-modified property',
-  'Si la escribes, al aprobar un motivo o un resumen se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.':
-    'If set, approving a reason or a summary writes today’s date in that property of the note. Empty = the plugin never touches the frontmatter.',
+  'Si la escribes, al aprobar algo se pone la fecha de hoy en esa propiedad. Vacío = no se toca el frontmatter.':
+    'If set, approving something writes today’s date to that property. Empty = frontmatter is never touched.',
   'Probar la conexión': 'Test the connection',
   'Hace una llamada mínima —unos pocos tokens— y te dice si tu IA responde. Ninguna nota se envía.':
     'Makes one tiny call — a few tokens — and tells you whether your AI answers. No note is sent.',

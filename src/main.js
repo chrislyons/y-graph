@@ -3,7 +3,15 @@
  * v1.19 (16.09.2026): el nombre visible pasa a «Why Graph». El id, los nombres de archivo y
  *   las clases CSS se quedan como están: cambiarlos costaría la ficha del directorio.
  *
- *
+ * v1.34 (25.09.2026): «Modelo» se elige de una lista cargada en vivo desde el proveedor (OpenRouter
+ *   con precio y solo los que respetan el esquema JSON; Gemini, OpenAI y la IA local con su llave).
+ *   ★ marca lo probado con Why Graph; «Otro» deja escribir un modelo que no aparece.
+ * v1.33 (25.09.2026): OpenRouter como quinto proveedor: una llave para muchos modelos, con esquema
+ *   JSON exigido (provider.require_parameters).
+ * v1.32 (23.09.2026): ajustes en secciones (Mapa, Novedades, página Avanzado plegada) con los
+ *   ajustes de ingesta y recortes. Asistente: plantilla «Negocio», «Profesional (normas y
+ *   servicios)», elegir una plantilla reparte las carpetas por su nombre (antes solo renombraba
+ *   columnas), «Qué significa cada capa» y aplicar sin cambios lo avisa.
  * v1.31 (19.09.2026): salud por gravedad (rojo solo lo grave, ámbar el resto); en el teléfono el tope por
  *   capa baja a lo que cabe; ajustes también como definiciones (búsqueda de ajustes de Obsidian 1.13).
  * v1.30 (19.09.2026): la escena se cachea en dos capas fuera de pantalla y cada cuadro de la animación
@@ -108,6 +116,35 @@ const AJUSTES_BASE = {
   mostrarLeyenda: true,
   mostrarAyuda: false,
   maxPorCapa: 150,
+  // Ingesta (1.32): de lo crudo al wiki. Vacío = la función no aparece; nunca se adivinan carpetas
+  // ajenas, porque escribir en el vault de alguien sin que lo haya pedido no se deshace.
+  carpetaCrudo: '',
+  carpetaWiki: '',
+  ultimaIngesta: '',
+  // Copias y resúmenes del mismo material: enviarlos es pagar dos veces por lo mismo.
+  ignorarIngesta: '*.mini.md, *digest*',
+  // Al abrir Obsidian: contar siempre (local, gratis); enviar a la IA solo si la persona lo activa.
+  autoIngesta: false,
+  topeDiario: 30,
+  // Vaults donde otro proceso crea las páginas (p. ej. una ingesta con reglas propias): apagarlo
+  // deja que el plugin solo agregue a páginas que ya existen.
+  permitirCrear: true,
+  archivoAlias: '',
+  // Recortes sueltos (1.32): el Web Clipper y el menú compartir del teléfono dejan notas en la
+  // raíz. Vacío = no se ordena nada. Mover siempre lo aprueba la persona: en muchos vaults la
+  // raíz es el lugar normal de las notas, y un plugin no puede adivinar cuál es un recorte.
+  carpetaRecortes: '',
+  quedanEnRaiz: '',
+  // Ajustes de revisión y temas de contenido (1.32–1.35): por ahora solo guardan su valor con los
+  // mismos defaults que upstream; las funciones que los usan llegan con la ingesta y el panel de
+  // revisión.
+  temasDeContenido: '',
+  tagsDeEstado: 'reutilizable, bloqueado, pendiente',
+  ordenTemas: 'notas',
+  votoRevision: false,
+  revisadas: {},
+  temasClave: [],
+  vaciosDescartados: [],
   vistasGuardadas: {},
   ultimaVista: null,
 };
@@ -157,6 +194,7 @@ function normalizarAjustes(guardado) {
   ajustes.mostrarLeyenda = typeof ajustes.mostrarLeyenda === 'boolean' ? ajustes.mostrarLeyenda : AJUSTES_BASE.mostrarLeyenda;
   ajustes.mostrarAyuda = typeof ajustes.mostrarAyuda === 'boolean' ? ajustes.mostrarAyuda : AJUSTES_BASE.mostrarAyuda;
   ajustes.maxPorCapa = ENTERO_AJUSTE(ajustes.maxPorCapa, AJUSTES_BASE.maxPorCapa, 30, 600, 10);
+  ajustes.topeDiario = ENTERO_AJUSTE(ajustes.topeDiario, AJUSTES_BASE.topeDiario, 5, 100, 5);
   delete ajustes.vistasGuardados;
   ajustes.vistasGuardadas = normalizarVistasGuardadas(ajustes.vistasGuardadas);
   const ultima = typeof ajustes.ultimaVista === 'string' ? ajustes.ultimaVista.trim().slice(0, NOMBRE_VISTA_MAX).toLowerCase() : '';
@@ -862,16 +900,15 @@ class AjustesMapa extends PluginSettingTab {
       t.setValue(p.ajustes[clave]).onChange(async (v) => { p.ajustes[clave] = v; await p.guardar(); });
       t.inputEl.rows = filas; t.inputEl.addClass('mn-ajuste-area');
     });
+    // [1.32] Ajustes en secciones: lo que casi todos tocan arriba (Mapa), las novedades en su
+    // propio bloque y lo raro plegado al final (página Avanzado) — igual que getSettingDefinitions().
+    new Setting(c).setName(T('Mapa')).setHeading();
     area(T('Capas'), 'Una por línea, de izquierda a derecha: «Nombre | descripción».', 'capas', 5);
     area('Carpetas → capa', 'Una por línea: «carpeta = número de capa» (0 es la primera). Gana la carpeta más específica. Lo que no esté aquí no aparece.', 'carpetas', 8);
     new Setting(c).setName(T('Propiedad de tema')).setDesc(T('Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.'))
       .addText((t) => t.setValue(p.ajustes.propiedadTema).onChange(async (v) => { p.ajustes.propiedadTema = v.trim(); await p.guardar(); }));
     area('Temas', 'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.', 'temas', 7);
-    area('Excluir notas', 'Nombres de nota (sin .md), separados por coma o línea. Útil para notas que enlazan a todo.', 'excluir', 2);
-    area('Carpetas de fuentes', 'Una por línea. «carpeta» cuenta cada archivo; «carpeta/*» agrupa cada subcarpeta en un nodo (por ejemplo, un día). Vacío = sin fuentes.', 'carpetasFuentes', 3);
-    new Setting(c).setName(T('Mostrar fuentes citadas')).setDesc(T('Las fuentes son los archivos de esas carpetas que tus notas citan por su ruta. «Bajo demanda»: aparecen al tocar la nota que las cita. «Todas»: siempre en la primera capa.'))
-      .addDropdown((d) => d.addOptions({ no: T('No mostrar'), demanda: T('Bajo demanda'), todas: T('Todas') }).setValue(String(p.ajustes.fuentes)).onChange(async (v) => { p.ajustes.fuentes = v; await p.guardar(); }));
-    new Setting(c).setName(T('Notas visibles por capa')).setDesc(T('En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.'))
+    new Setting(c).setName(T('Notas visibles por capa')).setDesc(T('En vaults grandes, cada capa muestra sus notas más conectadas; las demás aparecen al buscarlas.'))
       .addSlider((sl) => sl.setLimits(30, 600, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
     new Setting(c).setName(T('Orden de las capas')).setDesc(T('Elige el orden de las notas dentro de cada capa.'))
       .addDropdown((d) => d.addOptions({ auto: T('Automático'), alfabetico: T('Alfabético'), reciente: T('Más recientes') }).setValue(p.ajustes.ordenCapas)
@@ -890,23 +927,56 @@ class AjustesMapa extends PluginSettingTab {
         .onChange(async (v) => { p.ajustes.mostrarAyuda = v; await p.guardar(); }));
     new Setting(c).setName(T('Seguir la nota activa')).setDesc(T('Al abrir una nota, el mapa la enfoca.'))
       .addToggle((t) => t.setValue(p.ajustes.seguirActiva).onChange(async (v) => { p.ajustes.seguirActiva = v; await p.guardar(); }));
-    new Setting(c).setName(T('Animación')).setDesc(T('Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.'))
+    new Setting(c).setName(T('Animación')).setDesc(T('Pulsos de luz por los enlaces, solo con el mapa visible. Se apaga si el sistema pide menos movimiento.'))
       .addToggle((t) => t.setValue(p.ajustes.animacion).onChange(async (v) => { p.ajustes.animacion = v; await p.guardar(); }));
-    new Setting(c).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));
-    new Setting(c).setName(T('Propiedad de enlaces externos')).setDesc(T('Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.'))
-      .addText((t) => t.setValue(p.ajustes.propiedadEnlaces).onChange(async (v) => { p.ajustes.propiedadEnlaces = v.trim(); await p.guardar(); }));
-    new Setting(c).setName(T('Propiedad de fecha de modificación')).setDesc(T('Si la escribes, al aprobar un motivo o un resumen se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.'))
-      .addText((t) => t.setValue(p.ajustes.propiedadFecha).onChange(async (v) => { p.ajustes.propiedadFecha = v.trim(); await p.guardar(); }));
-    new Setting(c).setName(T('Sección de conexiones')).setDesc(T('Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).'))
-      .addText((t) => t.setValue(p.ajustes.seccionMotivos).onChange(async (v) => { p.ajustes.seccionMotivos = v.trim() || 'Conexiones'; await p.guardar(); }));
     this.pintarIA(c);
     new Setting(c).setName(T('Segunda revisión')).setDesc(T('Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.'))
       .addToggle((t) => t.setValue(p.ajustes.dobleVerificacion).onChange(async (v) => { p.ajustes.dobleVerificacion = v; await p.guardar(); }));
     new Setting(c).setName(T('Carpeta del registro de aprobaciones')).setDesc(T('Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.'))
       .addText((t) => t.setValue(p.ajustes.carpetaAuditoria).onChange(async (v) => { p.ajustes.carpetaAuditoria = v.trim(); await p.guardar(); }));
-    new Setting(c).setName(T('Restablecer')).setDesc(T('Vuelve a los valores por defecto.'))
+    new Setting(c).setName(T('Novedades')).setHeading();
+    // [1.32] La ingesta lee estos ajustes; sin carpeta crudo y carpeta wiki no hace nada.
+    new Setting(c).setName(T('Carpeta del material sin procesar')).setDesc(T('De dónde lee la ingesta: notas del día, capturas, transcripciones. Vacío = sin ingesta.'))
+      .addText((t) => t.setValue(p.ajustes.carpetaCrudo).onChange(async (v) => { p.ajustes.carpetaCrudo = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Carpeta del wiki')).setDesc(T('Dónde viven las páginas que la ingesta propone crear o actualizar. Vacío = sin ingesta.'))
+      .addText((t) => t.setValue(p.ajustes.carpetaWiki).onChange(async (v) => { p.ajustes.carpetaWiki = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Preparar novedades al abrir Obsidian')).setDesc(T('Tu IA revisa el material nuevo en segundo plano. Apagado, solo se cuenta y nada sale de tu equipo.'))
+      .addToggle((t) => t.setValue(!!p.ajustes.autoIngesta).onChange(async (v) => { p.ajustes.autoIngesta = v; await p.guardar(); }));
+    new Setting(c).setName(T('Tope de llamadas automáticas al día')).setDesc(T('Si el material nuevo pide más, se espera a que lo revises a mano.'))
+      .addSlider((sl) => sl.setLimits(5, 100, 5).setValue(Number(p.ajustes.topeDiario) || 30).setDynamicTooltip().onChange(async (v) => { p.ajustes.topeDiario = v; await p.guardar(); }));
+    new Setting(c).setName(T('Permitir crear páginas')).setDesc(T('Apagado, la ingesta solo agrega a páginas que ya existen.'))
+      .addToggle((t) => t.setValue(p.ajustes.permitirCrear !== false).onChange(async (v) => { p.ajustes.permitirCrear = v; await p.guardar(); }));
+    new Setting(c).setName(T('Archivo de alias')).setDesc(T('Opcional. Una nota con los otros nombres de tus páginas, para no crear la misma dos veces.'))
+      .addText((t) => t.setPlaceholder('alias.md').setValue(p.ajustes.archivoAlias).onChange(async (v) => { p.ajustes.archivoAlias = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Ignorar en la ingesta')).setDesc(T('Copias y resúmenes que no hay que enviar. Separados por coma; * vale cualquier texto.'))
+      .addText((t) => t.setValue(p.ajustes.ignorarIngesta).onChange(async (v) => { p.ajustes.ignorarIngesta = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Carpeta de recortes')).setDesc(T('Las notas sueltas en la raíz que nadie enlaza (del Web Clipper o del teléfono) se proponen para moverlas aquí. Vacío = no se ordena nada.'))
+      .addText((t) => t.setPlaceholder('Clippings').setValue(p.ajustes.carpetaRecortes).onChange(async (v) => { p.ajustes.carpetaRecortes = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Se quedan en la raíz')).setDesc(T('Notas que nunca se proponen para mover. Separadas por coma; * vale cualquier texto.'))
+      .addText((t) => t.setPlaceholder('Home*').setValue(p.ajustes.quedanEnRaiz).onChange(async (v) => { p.ajustes.quedanEnRaiz = v.trim(); await p.guardar(); }));
+    // Lo que pocos tocan, plegado: la primera pantalla de ajustes no debería asustar.
+    new Setting(c).setName(T('Avanzado')).setDesc(T('Fuentes, exclusiones, exportar y propiedades del frontmatter.')).setHeading()
+      .addToggle((t) => t.setValue(!!this.verAvanzado).onChange((v) => { this.verAvanzado = v; av.toggle(v); }));
+    const av = c.createDiv();
+    const areaAv = (nombre, desc, clave, filas) => new Setting(av).setName(T(nombre)).setDesc(T(desc)).addTextArea((t) => {
+      t.setValue(p.ajustes[clave]).onChange(async (v) => { p.ajustes[clave] = v; await p.guardar(); });
+      t.inputEl.rows = filas; t.inputEl.addClass('mn-ajuste-area');
+    });
+    areaAv('Carpetas de fuentes', 'Una por línea. «carpeta» cuenta cada archivo; «carpeta/*» agrupa cada subcarpeta en un nodo (por ejemplo, un día). Vacío = sin fuentes.', 'carpetasFuentes', 3);
+    new Setting(av).setName(T('Mostrar fuentes citadas')).setDesc(T('«Bajo demanda»: aparecen al tocar la nota que las cita. «Todas»: siempre, en la primera capa.'))
+      .addDropdown((d) => d.addOptions({ no: T('No mostrar'), demanda: T('Bajo demanda'), todas: T('Todas') }).setValue(String(p.ajustes.fuentes)).onChange(async (v) => { p.ajustes.fuentes = v; await p.guardar(); }));
+    areaAv('Excluir notas', 'Nombres de nota (sin .md), separados por coma o línea. Útil para notas que enlazan a todo.', 'excluir', 2);
+    new Setting(av).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));
+    new Setting(av).setName(T('Propiedad de enlaces externos')).setDesc(T('Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.'))
+      .addText((t) => t.setValue(p.ajustes.propiedadEnlaces).onChange(async (v) => { p.ajustes.propiedadEnlaces = v.trim(); await p.guardar(); }));
+    new Setting(av).setName(T('Propiedad de fecha de modificación')).setDesc(T('Si la escribes, al aprobar algo se pone la fecha de hoy en esa propiedad. Vacío = no se toca el frontmatter.'))
+      .addText((t) => t.setValue(p.ajustes.propiedadFecha).onChange(async (v) => { p.ajustes.propiedadFecha = v.trim(); await p.guardar(); }));
+    new Setting(av).setName(T('Sección de conexiones')).setDesc(T('Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).'))
+      .addText((t) => t.setValue(p.ajustes.seccionMotivos).onChange(async (v) => { p.ajustes.seccionMotivos = v.trim() || 'Conexiones'; await p.guardar(); }));
+    av.toggle(!!this.verAvanzado);
+    new Setting(av).setName(T('Restablecer')).setDesc(T('Vuelve a los valores por defecto.'))
       .addButton((b) => b.setButtonText(T('Restablecer')).onClick(async () => { p.ajustes = Object.assign({}, AJUSTES_BASE); await p.guardar(); this.display(); }));
-    c.createEl('p', { cls: 'setting-item-description', text: T('Restablecer no borra la llave guardada en este dispositivo.') });
+    av.createEl('p', { cls: 'setting-item-description', text: T('Restablecer no borra la llave guardada en este dispositivo.') });
     const pie = c.createEl('p', { cls: 'mn-pie' });
     pie.appendText(`${NOMBRE} ${p.manifest?.version || ''} · Powered by`);
     // El nombre de la marca va en una constante: la regla de mayúsculas del linter revisa
@@ -919,9 +989,9 @@ class AjustesMapa extends PluginSettingTab {
   pintarIA(c) {
     const p = this.plugin;
     new Setting(c).setName(T('Conecta tu inteligencia artificial (opcional)')).setHeading();
-    c.createEl('p', { cls: 'setting-item-description', text: T('Para el botón de sugerir motivo. Usa tu propia llave de la API, se guarda solo en este dispositivo y no viaja por Sync ni por git. La IA propone; tú apruebas.') });
+    c.createEl('p', { cls: 'setting-item-description', text: T('Tu propia llave de la API, guardada solo en este dispositivo (no viaja por Sync ni por git). La IA propone; tú apruebas.') });
     const prov = p.ajustes.proveedorIA || 'claude', def = PROVEEDORES[prov];
-    new Setting(c).setName(T('Proveedor')).setDesc(T('Elige con qué IA se generan los motivos y los resúmenes. Los controles de calidad (citas verificadas y tu aprobación) funcionan con todos.'))
+    new Setting(c).setName(T('Proveedor')).setDesc(T('Con qué IA se proponen motivos, resúmenes y novedades. Las citas verificadas y tu aprobación funcionan con todas.'))
       .addDropdown((d) => d.addOptions(Object.fromEntries(Object.entries(PROVEEDORES).map(([k, v]) => [k, v.nombre]))).setValue(prov)
         .onChange(async (v) => { p.ajustes.proveedorIA = v; p.ajustes.modeloIA = PROVEEDORES[v].modelo; await p.guardar(); this.refrescar(); }));
     if (def.llave) {
@@ -944,7 +1014,7 @@ class AjustesMapa extends PluginSettingTab {
       .addDropdown((d) => d.addOptions({ 'claude-opus-5': 'Claude Opus 5', 'claude-sonnet-5': 'Claude Sonnet 5', 'claude-haiku-4-5': 'Claude Haiku 4.5' }).setValue(p.ajustes.modeloIA || 'claude-opus-5').onChange(async (v) => { p.ajustes.modeloIA = v; await p.guardar(); }));
     else new Setting(c).setName(T('Modelo')).setDesc(T(def.modeloAyuda))
       .addText((t) => t.setPlaceholder(T('nombre del modelo')).setValue(p.ajustes.modeloIA).onChange(async (v) => { p.ajustes.modeloIA = v.trim(); await p.guardar(); }));
-    c.createEl('p', { cls: 'setting-item-description', text: T('La calidad de los motivos se midió con Claude Opus 5: 97,7 % correctos y 0 inventados sobre 50 conexiones. Con otros modelos los candados siguen puestos (citas verificadas y tu aprobación), pero la precisión no está medida.') });
+    c.createEl('p', { cls: 'setting-item-description', text: T('Medido con Claude Opus 5: 97,7 % de motivos correctos y 0 inventados en 50 conexiones. Con otros modelos los candados siguen; la precisión no está medida.') });
     new Setting(c).setName(T('Probar la conexión')).setDesc(T('Hace una llamada mínima —unos pocos tokens— y te dice si tu IA responde. Ninguna nota se envía.'))
       .addButton((b) => b.setButtonText(T('Probar')).onClick(async () => {
         b.setButtonText(T('Probando…')).setDisabled(true);
@@ -973,35 +1043,54 @@ class AjustesMapa extends PluginSettingTab {
     const area = (nombre, desc, key, rows) => ({ name: T(nombre), desc: T(desc), control: { type: 'textarea', key, rows } });
     const texto = (nombre, desc, key) => ({ name: T(nombre), desc: desc ? T(desc) : undefined, control: { type: 'text', key } });
     const interruptor = (nombre, desc, key) => ({ name: T(nombre), desc: T(desc), control: { type: 'toggle', key } });
+    // [1.32] Cinco bloques: lo que casi todos tocan arriba, lo raro en una página aparte.
     return [
-      area('Capas', 'Una por línea, de izquierda a derecha: «Nombre | descripción».', 'capas', 5),
-      area('Carpetas → capa', 'Una por línea: «carpeta = número de capa» (0 es la primera). Gana la carpeta más específica. Lo que no esté aquí no aparece.', 'carpetas', 8),
-      texto('Propiedad de tema', 'Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.', 'propiedadTema'),
-      area('Temas', 'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.', 'temas', 7),
-      area('Excluir notas', 'Nombres de nota (sin .md), separados por coma o línea. Útil para notas que enlazan a todo.', 'excluir', 2),
-      area('Carpetas de fuentes', 'Una por línea. «carpeta» cuenta cada archivo; «carpeta/*» agrupa cada subcarpeta en un nodo (por ejemplo, un día). Vacío = sin fuentes.', 'carpetasFuentes', 3),
-      { name: T('Mostrar fuentes citadas'), desc: T('Las fuentes son los archivos de esas carpetas que tus notas citan por su ruta. «Bajo demanda»: aparecen al tocar la nota que las cita. «Todas»: siempre en la primera capa.'),
-        control: { type: 'dropdown', key: 'fuentes', options: { no: T('No mostrar'), demanda: T('Bajo demanda'), todas: T('Todas') } } },
-      { name: T('Notas visibles por capa'), desc: T('En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.'),
-        control: { type: 'slider', key: 'maxPorCapa', min: 30, max: 600, step: 10, defaultValue: 150 } },
-      { name: T('Orden de las capas'), desc: T('Elige el orden de las notas dentro de cada capa.'),
-        control: { type: 'dropdown', key: 'ordenCapas', options: { auto: T('Automático'), alfabetico: T('Alfabético'), reciente: T('Más recientes') }, defaultValue: 'auto' } },
-      { name: T('Profundidad radial'), desc: T('Cuántos saltos alrededor de la nota seleccionada muestra la vista radial.'),
-        control: { type: 'slider', key: 'profundidadRadial', min: 1, max: 4, step: 1, defaultValue: 2 } },
-      { name: T('Tema visual'), desc: T('Sigue el tema claro u oscuro de Obsidian o usa la paleta nocturna clásica.'),
-        control: { type: 'dropdown', key: 'temaVisual', options: { tema: T('Seguir el tema'), noche: T('Noche estrellada') }, defaultValue: 'tema' } },
-      interruptor('Mostrar leyenda', 'Muestra las formas de notas, fuentes, supernodos y problemas.', 'mostrarLeyenda'),
-      interruptor('Mostrar ayuda al abrir', 'Abre la guía breve al abrir el mapa; también puedes abrirla desde Ayuda.', 'mostrarAyuda'),
-      interruptor('Seguir la nota activa', 'Al abrir una nota, el mapa la enfoca.', 'seguirActiva'),
-      interruptor('Animación', 'Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.', 'animacion'),
-      texto('Carpeta para exportar imágenes', null, 'carpetaExport'),
-      texto('Propiedad de enlaces externos', 'Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.', 'propiedadEnlaces'),
-      texto('Propiedad de fecha de modificación', 'Si la escribes, al aprobar un motivo o un resumen se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.', 'propiedadFecha'),
-      texto('Sección de conexiones', 'Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).', 'seccionMotivos'),
-      { name: T('Conecta tu inteligencia artificial (opcional)'), aliases: ['IA', 'AI', 'API key', 'Claude', 'OpenAI', 'Gemini', 'Ollama'],
+      { type: 'group', heading: T('Mapa'), items: [
+        area('Capas', 'Una por línea, de izquierda a derecha: «Nombre | descripción».', 'capas', 5),
+        area('Carpetas → capa', 'Una por línea: «carpeta = número de capa» (0 es la primera). Gana la carpeta más específica. Lo que no esté aquí no aparece.', 'carpetas', 8),
+        texto('Propiedad de tema', 'Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.', 'propiedadTema'),
+        area('Temas', 'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.', 'temas', 7),
+        { name: T('Notas visibles por capa'), desc: T('En vaults grandes, cada capa muestra sus notas más conectadas; las demás aparecen al buscarlas.'),
+          control: { type: 'slider', key: 'maxPorCapa', min: 30, max: 600, step: 10, defaultValue: 150 } },
+        { name: T('Orden de las capas'), desc: T('Elige el orden de las notas dentro de cada capa.'),
+          control: { type: 'dropdown', key: 'ordenCapas', options: { auto: T('Automático'), alfabetico: T('Alfabético'), reciente: T('Más recientes') }, defaultValue: 'auto' } },
+        { name: T('Profundidad radial'), desc: T('Cuántos saltos alrededor de la nota seleccionada muestra la vista radial.'),
+          control: { type: 'slider', key: 'profundidadRadial', min: 1, max: 4, step: 1, defaultValue: 2 } },
+        { name: T('Tema visual'), desc: T('Sigue el tema claro u oscuro de Obsidian o usa la paleta nocturna clásica.'),
+          control: { type: 'dropdown', key: 'temaVisual', options: { tema: T('Seguir el tema'), noche: T('Noche estrellada') }, defaultValue: 'tema' } },
+        interruptor('Mostrar leyenda', 'Muestra las formas de notas, fuentes, supernodos y problemas.', 'mostrarLeyenda'),
+        interruptor('Mostrar ayuda al abrir', 'Abre la guía breve al abrir el mapa; también puedes abrirla desde Ayuda.', 'mostrarAyuda'),
+        interruptor('Seguir la nota activa', 'Al abrir una nota, el mapa la enfoca.', 'seguirActiva'),
+        interruptor('Animación', 'Pulsos de luz por los enlaces, solo con el mapa visible. Se apaga si el sistema pide menos movimiento.', 'animacion'),
+      ] },
+      { name: T('Conecta tu inteligencia artificial (opcional)'), aliases: ['IA', 'AI', 'API key', 'Claude', 'OpenAI', 'Gemini', 'OpenRouter', 'Ollama'],
         render: (setting) => { const el = setting?.settingEl; if (!el) return; el.empty(); el.addClass('mn-ajuste-ia'); this.pintarIA(el); } },
-      interruptor('Segunda revisión', 'Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.', 'dobleVerificacion'),
-      texto('Carpeta del registro de aprobaciones', 'Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.', 'carpetaAuditoria'),
+      { type: 'group', items: [
+        interruptor('Segunda revisión', 'Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.', 'dobleVerificacion'),
+        texto('Carpeta del registro de aprobaciones', 'Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.', 'carpetaAuditoria'),
+      ] },
+      { type: 'group', heading: T('Novedades'), items: [
+        texto('Carpeta del material sin procesar', 'De dónde lee la ingesta: notas del día, capturas, transcripciones. Vacío = sin ingesta.', 'carpetaCrudo'),
+        texto('Carpeta del wiki', 'Dónde viven las páginas que la ingesta propone crear o actualizar. Vacío = sin ingesta.', 'carpetaWiki'),
+        interruptor('Preparar novedades al abrir Obsidian', 'Tu IA revisa el material nuevo en segundo plano. Apagado, solo se cuenta y nada sale de tu equipo.', 'autoIngesta'),
+        { name: T('Tope de llamadas automáticas al día'), desc: T('Si el material nuevo pide más, se espera a que lo revises a mano.'),
+          control: { type: 'slider', key: 'topeDiario', min: 5, max: 100, step: 5, defaultValue: 30 } },
+        interruptor('Permitir crear páginas', 'Apagado, la ingesta solo agrega a páginas que ya existen.', 'permitirCrear'),
+        texto('Archivo de alias', 'Opcional. Una nota con los otros nombres de tus páginas, para no crear la misma dos veces.', 'archivoAlias'),
+        texto('Ignorar en la ingesta', 'Copias y resúmenes que no hay que enviar. Separados por coma; * vale cualquier texto.', 'ignorarIngesta'),
+        texto('Carpeta de recortes', 'Las notas sueltas en la raíz que nadie enlaza (del Web Clipper o del teléfono) se proponen para moverlas aquí. Vacío = no se ordena nada.', 'carpetaRecortes'),
+        texto('Se quedan en la raíz', 'Notas que nunca se proponen para mover. Separadas por coma; * vale cualquier texto.', 'quedanEnRaiz'),
+      ] },
+      { type: 'page', name: T('Avanzado'), desc: T('Fuentes, exclusiones, exportar y propiedades del frontmatter.'), items: [
+        area('Carpetas de fuentes', 'Una por línea. «carpeta» cuenta cada archivo; «carpeta/*» agrupa cada subcarpeta en un nodo (por ejemplo, un día). Vacío = sin fuentes.', 'carpetasFuentes', 3),
+        { name: T('Mostrar fuentes citadas'), desc: T('«Bajo demanda»: aparecen al tocar la nota que las cita. «Todas»: siempre, en la primera capa.'),
+          control: { type: 'dropdown', key: 'fuentes', options: { no: T('No mostrar'), demanda: T('Bajo demanda'), todas: T('Todas') } } },
+        area('Excluir notas', 'Nombres de nota (sin .md), separados por coma o línea. Útil para notas que enlazan a todo.', 'excluir', 2),
+        texto('Carpeta para exportar imágenes', null, 'carpetaExport'),
+        texto('Propiedad de enlaces externos', 'Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.', 'propiedadEnlaces'),
+        texto('Propiedad de fecha de modificación', 'Si la escribes, al aprobar algo se pone la fecha de hoy en esa propiedad. Vacío = no se toca el frontmatter.', 'propiedadFecha'),
+        texto('Sección de conexiones', 'Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).', 'seccionMotivos'),
+      ] },
     ];
   }
   hide() {
