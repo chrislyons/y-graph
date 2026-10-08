@@ -95,7 +95,7 @@ p.cierto('no conserva aliases privados de datos o selección', ['this.D', 'this.
 p.cierto('no existe inyección de pruebas en producción', !main.includes('new Function') && !main.includes('__whyGraphTest'));
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf8'));
 p.igual('el manifest conserva su identidad y compatibilidad', [manifest.id, manifest.minAppVersion, manifest.isDesktopOnly], ['mapa-neuronal', '1.8.7', false]);
-p.igual('la producción conserva exactamente tres IDs de comando', [...main.matchAll(/addCommand\(\{ id: '([^']+)'/g)].map((match) => match[1]), ['abrir', 'recargar-ajustes', 'enfocar-actual']);
+p.igual('la producción conserva exactamente cuatro IDs de comando', [...main.matchAll(/addCommand\(\{ id: '([^']+)'/g)].map((match) => match[1]), ['abrir', 'recargar-ajustes', 'ingerir', 'enfocar-actual']);
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
 for (const script of ['build:test', 'test:visual', 'test:performance', 'test:browser']) {

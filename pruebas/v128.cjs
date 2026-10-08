@@ -153,7 +153,7 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
 
   // ── 6. Plugin: comandos y recarga de ajustes ─────────────────────────────────────────────────
   const pl = new Plugin(); pl.app = app; await pl.onload();
-  p.igual('registra tres comandos', pl.comandos.length, 3);
+  p.igual('registra cuatro comandos', pl.comandos.length, 4); // «ingerir» llega con el puerto de ingesta
   p.cierto('uno es recargar-ajustes', pl.comandos.some((c) => c.id === 'recargar-ajustes'));
   pl._datos = Object.assign({}, AJUSTES, { capas: 'A | a\nB | b', carpetaExport: 'otra' });
   await pl.recargarAjustes();

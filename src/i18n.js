@@ -410,6 +410,29 @@ const EN = {
   'info': 'info',
   'grave': 'serious',
   'advertencia': 'warning',
+  // 1.32–1.33: motor de ingesta, comando ingerir, avisos de cuota y rótulos del radial.
+  'Revisar novedades del material': 'Review what is new in your material',
+  '{0}: se agotó la cuota diaria de {1} ({2} llamadas al día en la capa gratis). Elige otro modelo o activa la facturación; mañana se renueva.':
+    '{0}: the daily quota for {1} is used up ({2} calls a day on the free tier). Pick another model or enable billing; it resets tomorrow.',
+  'Se llegó al tope diario de llamadas automáticas. Lo que falta queda para la próxima vez.':
+    'The daily limit of automatic calls was reached. The rest is kept for next time.',
+  '{0} no respondió en {1} s. Vuelve a intentar en un rato.': '{0} did not answer within {1} s. Try again in a while.',
+  'Gemini bloqueó el material ({0}).': 'Gemini blocked the material ({0}).',
+  'Novedades listas: {0}. Tócalas en la barra del mapa.': 'New items ready: {0}. Tap them in the map bar.',
+  'No hay material nuevo. Cuando escribas o captures algo en «{0}», aparece aquí.':
+    'Nothing new. When you write or capture something in "{0}", it shows up here.',
+  '{0} archivo(s) con material nuevo: {1} llamada(s) a {2}. Tus notas se envían a ese servicio.':
+    '{0} file(s) with new material: {1} call(s) to {2}. Your notes are sent to that service.',
+  'Novedades: no se pudo leer el material. {0}': "What's new: the material could not be read. {0}",
+  'Hay material nuevo, pero hoy ya van {0} de {1} llamadas automáticas. Revísalo desde el mapa.':
+    'There is new material, but {0} of {1} automatic calls were already used today. Review it from the map.',
+  'Esta novedad no se puede aprobar.': 'This item cannot be approved.',
+  'fuente': 'source',
+  'Crear páginas está desactivado en los ajustes.': 'Creating pages is turned off in settings.',
+  'ingesta': 'ingestion',
+  'Cita': 'Quote',
+  'Material de origen': 'Source material',
+  'aprobado por la persona': 'approved by the person',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
 export const enEspanol = () => {
