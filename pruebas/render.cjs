@@ -84,6 +84,23 @@ function canvasFalso() {
   return { width: 0, height: 0, ctx, getContext(type) { return type === '2d' ? ctx : null; } };
 }
 
+// [Slice E] Contexto que registra strokeStyle/lineWidth/font para leer la receta del lienzo.
+function ctxCaptura(colores, grosores, fuentes = []) {
+  const noop = () => {};
+  const ctx = {
+    beginPath: noop, moveTo: noop, lineTo: noop, bezierCurveTo: noop, stroke: noop, fill: noop,
+    fillRect: noop, strokeRect: noop, clearRect: noop, save: noop, restore: noop, translate: noop,
+    scale: noop, setTransform: noop, setLineDash: noop, arc: noop, closePath: noop, fillText: noop,
+    strokeText: noop, drawImage: noop, fillStyle: '', globalCompositeOperation: 'source-over',
+    lineJoin: 'miter', miterLimit: 10,
+    measureText: (text) => ({ width: String(text).length * 6 }),
+  };
+  Object.defineProperty(ctx, 'strokeStyle', { configurable: true, set: (v) => colores.push(v), get: () => colores[colores.length - 1] ?? '' });
+  Object.defineProperty(ctx, 'lineWidth', { configurable: true, set: (v) => grosores.push(v), get: () => grosores[grosores.length - 1] ?? 0 });
+  Object.defineProperty(ctx, 'font', { configurable: true, set: (v) => fuentes.push(v), get: () => fuentes[fuentes.length - 1] ?? '' });
+  return ctx;
+}
+
 const anterioresPath = global.Path2D;
 global.Path2D = undefined;
 const creados = [];
@@ -109,7 +126,11 @@ p.igual('el hit de arista devuelve la arista exacta', [renderer.hitTest((nodoA.x
   ['arista', aristaAB.id]);
 
 const etiquetasDesktop = renderer.scene.labelPlacements;
-p.cierto('la etiqueta respeta el presupuesto desktop', etiquetasDesktop.length <= Math.floor(1000 * 700 / 9000));
+// [Slice E] Escritorio ya no tiene presupuesto por área (24–96): manda la densidad por capa
+// (YGR002 §3.2). Este fixture tiene capas de 4/2/2 nodos —no densas— y k=1 ≥ zoomCapa, así que
+// todo lo elegible rótula; labelBudget ahora cuenta elegibles, no un tope.
+p.cierto('escritorio sin capa densa rótula todo lo elegible',
+  etiquetasDesktop.length > 0 && etiquetasDesktop.length <= renderer.scene.labelBudget);
 p.cierto('los encabezados de capa se reservan antes que las etiquetas', renderer.scene.layers.every((layer) => {
   const heading = { x: layer.x - 4, y: layer.y0 - 28, w: String(layer.nombre).length * 5 + 8, h: 18 };
   return etiquetasDesktop.every((label) => label.rect.x + label.rect.w <= heading.x || label.rect.x >= heading.x + heading.w
@@ -133,8 +154,16 @@ const datosEscenaGrande = {
 };
 rendererMovil.setViewport({ width: 1000, height: 700, dpr: 1 }).setGraph(datosEscenaGrande, { modo: 'capas', camara: { x: 0, y: 0, k: 1 } });
 rendererMovil.render(1000);
-p.igual('una capa de 600 nodos usa el presupuesto desktop exacto', rendererMovil.scene.labelBudget, 77);
-p.cierto('una capa de 600 nodos no excede el presupuesto desktop', rendererMovil.scene.labelPlacements.length <= 77);
+// [Slice E] 600 nodos en una capa = densa (>96): en reposo nada es elegible y labelBudget es 0
+// (antes el presupuesto por área daba 77 y repartía rótulos a diestra y siniestra).
+p.igual('una capa de 600 nodos en reposo no rotula nada',
+  [rendererMovil.scene.labelBudget, rendererMovil.scene.labelPlacements.length], [0, 0]);
+// Con una nota seleccionada la capa densa rotula exactamente la resaltada (sin aristas no hay
+// enlazados). El presupuesto mobile (25 arriba) sigue intacto para el teléfono.
+rendererMovil.setGraph(datosEscenaGrande, { ...estadoInicial, seleccion: 'g5' });
+rendererMovil.render(1001);
+p.igual('con una nota seleccionada la capa densa rotula solo la resaltada',
+  rendererMovil.scene.labelPlacements.map((label) => label.id), ['g5']);
 rendererMovil.destroy();
 
 const estadoPrioridad = { ...estadoInicial, seleccion: 'a3', ruta: ['a1', 'b1'], focoTeclado: 'a2', filtro: 'B enlazado' };
@@ -203,9 +232,76 @@ p.igual('setHighlight no recalcula la visibilidad', [...renderer._visibleIds].so
 p.igual('setHighlight reprioriza la etiqueta del nodo hover', renderer._orderedLabels[0] && renderer._orderedLabels[0].id, 'b2');
 const aristaSobre = renderer.scene.edges.find((edge) => edge.a === 'b2' || edge.b === 'b2');
 const aristaAjena = renderer.scene.edges.find((edge) => edge.a !== 'b2' && edge.b !== 'b2');
+// [Slice E] La base ahora se splitía: explicada rgba(170,185,255,.2), auxiliar discontinua .16.
 p.igual('los enlaces del nodo hover se encienden en accent',
   [renderer._edgeColor(aristaSobre), renderer._edgeColor(aristaAjena)],
-  [renderer.paleta.accent, renderer.paleta.edge]);
+  [renderer.paleta.accent, aristaAjena.motivo ? renderer.paleta.edge : renderer.paleta.edgeAux]);
+
+// [Slice E] La paleta base es el sistema night-owl: canvas y noche del DOM son el mismo color.
+p.igual('la paleta base es el sistema night-owl del DOM',
+  [renderer.paleta.grid, renderer.paleta.muted, renderer.paleta.accent, renderer.paleta.danger,
+    renderer.paleta.warning, renderer.paleta.success, renderer.paleta.node, renderer.paleta.edge,
+    renderer.paleta.edgeAux, renderer.paleta.labelHalo],
+  ['#465080', '#aab2d0', '#b79cff', '#ff8a80', '#ffd166', '#70d6a0', '#C9D1FF',
+    'rgba(170,185,255,.2)', 'rgba(170,185,255,.16)', '#060a18']);
+const rDescalzo = new GraphRenderer(canvasFalso(), { medirTexto: () => ({ width: 5 }) });
+p.igual('fondo y texto base = noche del DOM', [rDescalzo.paleta.bg, rDescalzo.paleta.text], ['#060a18', '#e6eaff']);
+
+// [Slice E · §3.2] Tutti diferido por zoom: cada capa rotula desde su umbral de densidad.
+// Fixture de 10 nodos (≤16 → zoomCapa 0.35): bajo el umbral no rotula nada, al cruzarlo, tutti.
+const datosUmbral = {
+  nodos: Array.from({ length: 10 }, (_, i) => nodo(`u${i}`, 0, `Umbral ${i}`)),
+  aristas: [], capas: [['u', 'Umbral']], temas: {},
+};
+renderer.setGraph(datosUmbral, { modo: 'capas', camara: { x: 0, y: 0, k: 0.3 }, ruta: [] });
+renderer.render(5010);
+p.igual('bajo zoomCapa (0.35) la capa no rotula: el tutti espera su umbral',
+  [renderer.scene.labelBudget, renderer.scene.labelPlacements.length], [0, 0]);
+renderer.setGraph(datosUmbral, { modo: 'capas', camara: { x: 0, y: 0, k: 0.4 }, ruta: [] });
+renderer.render(5011);
+p.cierto('al cruzar zoomCapa la capa rota tutti (sin presupuesto global)',
+  renderer.scene.labelPlacements.length > 0 && renderer.scene.labelBudget === 10);
+// Y la capa de 4 nodos del fixture principal ya rota a k=0.3 (umbral 0.2).
+renderer.setGraph(datosCapas, { ...estadoInicial, camara: { x: 0, y: 0, k: 0.3 } });
+renderer.render(5012);
+const idsBajoZoom = renderer.scene.labelPlacements.map((label) => label.id);
+p.cierto('una capa de 4 nodos ya rotula a k=0.3 (umbral 0.2)',
+  ['a1', 'a2', 'a3'].some((id) => idsBajoZoom.includes(id)));
+
+// [Slice E · §3.7] Cascada de luminancia con foco (a1) y ruta (b1 → c1).
+renderer.setGraph(datosCapas, { ...estadoInicial, seleccion: 'a1', ruta: ['b1', 'c1'] });
+renderer.render(5020);
+const coloresRuta = []; const grosorRuta = [];
+renderer._drawBackground(ctxCaptura(coloresRuta, grosorRuta), 1000, 700, renderer._camera(), { low: false });
+const rutaPorColor = new Map(coloresRuta.map((color, i) => [color, grosorRuta[i]]));
+p.cierto('§3.7: directas del foco 0.92/1.6, tramos de ruta 0.70/1.25, el resto 0.025/0.6',
+  coloresRuta.length === 3
+  && rutaPorColor.get('rgba(183, 156, 255, 0.92)') === 1.6
+  && rutaPorColor.get('rgba(183, 156, 255, 0.7)') === 1.25
+  && rutaPorColor.get('rgba(170, 185, 255, 0.025)') === 0.6);
+
+// Sin foco ni ruta la base se dibuja tal cual: .2 explicada, .16 auxiliar discontinua, 1.25px.
+renderer.setGraph(datosCapas, estadoInicial);
+renderer.render(5030);
+const coloresBase = []; const grosorBase = [];
+renderer._drawBackground(ctxCaptura(coloresBase, grosorBase), 1000, 700, renderer._camera(), { low: false });
+p.igual('sin foco ni ruta la base conserva sus colores y su grosor',
+  [coloresBase.length, grosorBase.every((w) => w === 1.25),
+    coloresBase.filter((c) => c === 'rgba(170,185,255,.2)').length,
+    coloresBase.filter((c) => c === 'rgba(170,185,255,.16)').length],
+  [3, true, 1, 2]);
+
+// [Slice E · §3.1/§3.4] Receta strokeText literal y rótulos mono 9px a k=1.
+renderer.setGraph(datosCapas, { ...estadoInicial, camara: { x: 0, y: 0, k: 1 } });
+renderer.render(5040);
+const fuentesRotulo = [];
+const ctxReceta = ctxCaptura([], [], fuentesRotulo);
+renderer._drawForeground(ctxReceta, 1000, 700, renderer._camera());
+p.igual('§3.1: contorno oscuro redondo con miter corto',
+  [ctxReceta.strokeStyle, ctxReceta.lineJoin, ctxReceta.miterLimit], ['rgba(6,10,24,0.92)', 'round', 2]);
+p.cierto('§3.1: el grosor del contorno es max(2.2, 3.2/√k)', ctxReceta.lineWidth >= 2.2);
+p.cierto('§3.4: los rótulos se dibujan en pila mono a 9px×√k',
+  fuentesRotulo.some((f) => /^500 9px ui-monospace/.test(f) || /^600 9px ui-monospace/.test(f)));
 
 renderer.destroy();
 p.igual('destroy libera contexts, canvases y escena', [renderer.canvas, renderer.ctx, renderer.scene, renderer._backgroundCanvas,renderer._foregroundCanvas], [null, null, null, null, null]);

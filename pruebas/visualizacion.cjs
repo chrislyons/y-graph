@@ -166,10 +166,26 @@ const presupuesto = crearRenderer(fixture, viewportEtiquetas, estadoCapa600);
 presupuesto.renderer.render(1000);
 const capa600 = presupuesto.capas[1];
 const etiquetas600 = etiquetasDeCapa(capa600);
-const budgetEsperado = Math.max(24, Math.min(96, Math.floor(viewportEtiquetas.width * viewportEtiquetas.height / 9000)));
-p.cierto('la capa de 600 nodos coloca etiquetas dentro del presupuesto desktop', etiquetas600.length > 0 && etiquetas600.length <= budgetEsperado);
+// [Slice E] Regla YGR002 §3.2: la capa densa (600 > 96) en reposo no rotula nada — el viejo
+// presupuesto por área desktop (24–96, 77 aquí) deja de existir; labelBudget cuenta elegibles.
+p.igual('la capa de 600 nodos en reposo no rotula nada',
+  [presupuesto.renderer.scene.labelBudget, etiquetas600.length], [0, 0]);
 const colision600 = etiquetas600.find((a, i) => etiquetas600.slice(i + 1).some((b) => solapan(a.rect, b.rect))) || null;
 p.igual('ninguna etiqueta de la capa de 600 nodos colisiona', colision600, null);
+// Con selección solo son elegibles el directo y sus enlazados visibles de la capa 0:
+// AMX101 (inventory-101) vecinos con los loops i+1, i+37 y i+211 — AMX102, Nodo 0037 y Nodo 0211.
+const resaltado = crearRenderer(fixture, viewportEtiquetas, { ...estadoCapa600, seleccion: 'inventory-101' });
+resaltado.renderer.render(1001);
+const soloResaltado = etiquetasDeCapa(resaltado.capas[1]);
+const elegibles600 = ['AMX101', 'AMX102', 'Nodo 0037', 'Nodo 0211'];
+p.igual('con selección la capa densa rotula solo directo y enlazados',
+  soloResaltado.map((label) => label.titulo).filter((titulo) => elegibles600.includes(titulo)).sort(),
+  soloResaltado.map((label) => label.titulo).sort());
+p.cierto('y la nota seleccionada está entre ellas',
+  soloResaltado.length > 0 && soloResaltado.some((label) => label.titulo === 'AMX101'));
+const colisionResaltado = soloResaltado.find((a, i) => soloResaltado.slice(i + 1).some((b) => solapan(a.rect, b.rect))) || null;
+p.igual('ninguna etiqueta resaltada colisiona', colisionResaltado, null);
+resaltado.renderer.destroy();
 presupuesto.renderer.destroy();
 
 const datosPrioridad = {

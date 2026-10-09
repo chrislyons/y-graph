@@ -17,10 +17,46 @@ function rgba(h, a) {
 }
 
 const PALETA_BASE = Object.freeze({
-  bg: '#111827', surface: '#1f2937', border: '#4b5563', text: '#f9fafb', muted: '#9ca3af',
-  grid: '#374151', accent: '#60a5fa', danger: '#ef4444', warning: '#f59e0b', success: '#22c55e',
-  labelHalo: '#111827', edge: '#9ca3af', node: '#93c5fd', source: '#c4b5fd', topic: '#67e8f9',
+  // [Slice E · YGR002] El sistema night-owl del canvas: calca la noche del DOM
+  // (.mn-raiz[data-mn-theme="noche"]) y la hoja archivada, para que lienzo y cromo sean uno.
+  bg: '#060a18', surface: '#1f2937', border: '#4b5563', text: '#e6eaff', muted: '#aab2d0',
+  grid: '#465080', accent: '#b79cff', danger: '#ff8a80', warning: '#ffd166', success: '#70d6a0',
+  labelHalo: '#060a18', edge: 'rgba(170,185,255,.2)', edgeAux: 'rgba(170,185,255,.16)',
+  node: '#C9D1FF', source: '#c4b5fd', topic: '#67e8f9',
 });
+
+// [Slice E · §3.4] Todo rótulo de nodo en monospace de 9px a k=1 (crece √k, como en v2110:
+// la fuente vive en unidades de mundo a 1/√k y el lienzo dibuja en pantalla). El canvas no lee
+// variables CSS: la pila mono va escrita.
+const FUENTE_ROTULO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+const ROTULO_PX = 9;
+const fuenteRotulo = (k, fuerte) => `${fuerte ? 600 : 500} ${ROTULO_PX * Math.sqrt(k)}px ${FUENTE_ROTULO}`;
+const fuenteCabecera = (k) => `600 ${12.5 * Math.sqrt(k)}px ${FUENTE_ROTULO}`;
+const anchoRotulo = (k) => Math.max(ETIQUETA_ALTO, ROTULO_PX * Math.sqrt(k) + 9);
+
+/** [Slice E · §3.2] Zoom al que cada capa, según su densidad, empieza a rotular (tutti). */
+function zoomCapa(densidad) {
+  if (densidad <= 4) return 0.2;
+  if (densidad <= 16) return 0.35;
+  if (densidad <= 64) return 0.55;
+  return 0.75;
+}
+
+/** Cambia el alfa de un color ya sea #hex o rgba(...); devuelve el color con el alfa pedido. */
+function conAlfa(color, alfa) {
+  if (typeof color !== 'string') return color;
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    const full = hex.length === 3 ? [...hex].map((c) => c + c).join('') : hex;
+    const n = parseInt(full, 16);
+    if (Number.isFinite(n)) return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`;
+    return color;
+  }
+  const m = color.match(/rgba?\(([^)]+)\)/);
+  if (!m) return color;
+  const p = m[1].split(',').map((s) => s.trim());
+  return `rgba(${p[0]}, ${p[1]}, ${p[2]}, ${alfa})`;
+}
 
 function texto(value) {
   return value == null ? '' : String(value);
@@ -262,11 +298,11 @@ export class GraphRenderer {
     return !(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
-  /** Hex del tema del mapa (o el color de borde si el tema no tiene color). */
+  /** Hex del tema del mapa (o el nodo por defecto, como el color() de v2110: #C9D1FF). */
   colorTema(tema) {
     const t = this.datos && this.datos.temas && tema ? this.datos.temas[tema] : null;
     const c = Array.isArray(t) ? t[1] : t && (t.color || t.nombre);
-    return typeof c === 'string' && c ? c : this.paleta.edge;
+    return typeof c === 'string' && c ? c : this.paleta.node;
   }
 
   /** Punto de la curva real de la escena en u ∈ [0, 1): el pulso siempre monta sobre la línea. */
@@ -607,25 +643,42 @@ export class GraphRenderer {
   _placeLabels(camera, right, bottom, low, width = this.viewport.width) {
     if (!this.scene) return;
     const area = width * bottom;
-    const budget = this._mobile() ? Math.max(12, Math.min(40, Math.floor(area / 13000))) : Math.max(24, Math.min(96, Math.floor(area / 9000)));
+    const movil = this._mobile();
+    // Móvil: el viejo presupuesto por área sigue mandando (seguridad táctil: a lo sumo 40).
+    // Escritorio: ya no hay tope global — manda la regla de densidad YGR002 §3.2 (más abajo).
+    const presupuesto = movil ? Math.max(12, Math.min(40, Math.floor(area / 13000))) : 0;
+    const directos = movil ? null : this._resaltadosDirectos();
+    const enlazados = directos && directos.size ? this._enlazadosCon(directos) : new Set();
+    const densidades = new Map((this.scene.layers || []).map((layer) => [layer.indice, layer.count || 50]));
+    const elegible = (candidate) => {
+      if (movil) return true;
+      if (directos.has(candidate.id)) return true;
+      const node = this._candidateNode(candidate);
+      const densidad = densidades.get(node ? node.capa : -1) ?? 50;
+      if (densidad > 96) return false;                       // capa densa: solo resaltados directos
+      if (enlazados.has(candidate.id)) return true;
+      return this.scene.mode !== 'radial' && camera.k >= zoomCapa(densidad);   // tutti desde su umbral
+    };
+    const elegibles = this._orderedLabels.reduce((total, candidate) => total + (elegible(candidate) ? 1 : 0), 0);
+    const tope = movil ? presupuesto : elegibles;
     const occupied = this._labelOccupied;
     occupied.length = 0;
-    const font = '12px system-ui, sans-serif';
+    const font = fuenteCabecera(camera.k);
     for (const layer of this.scene.layers || []) {
       const x = layer.x * camera.k + camera.x;
       const y = (layer.y0 - 14) * camera.k + camera.y;
       const text = layer.nombre || layer.name || String(layer.indice + 1);
       const w = this._measure(text, font) + 8;
-      const rect = { x: x - 4, y: y - 14, w, h: ETIQUETA_ALTO };
+      const rect = { x: x - 4, y: y - 14, w, h: Math.max(ETIQUETA_ALTO, 12.5 * Math.sqrt(camera.k)) };
       if (esRectanguloVisible(rect, 0, 0, right, bottom, 0.7)) occupied.push(rect);
     }
     const previous = this._labels;
     const placed = this._nextLabels;
     placed.length = 0;
     for (const old of previous) {
-      if (placed.length >= budget) break;
+      if (placed.length >= tope) break;
       const candidate = this._labelById.get(old.id);
-      if (!candidate) continue;
+      if (!candidate || !elegible(candidate)) continue;
       const node = this._candidateNode(candidate);
       if (!node || !this._nodeVisible(node)) continue;
       const rects = this._candidateRects(candidate, node, camera);
@@ -634,8 +687,9 @@ export class GraphRenderer {
       }
     }
     for (const candidate of this._orderedLabels) {
-      if (placed.length >= budget) break;
+      if (placed.length >= tope) break;
       if (placed.some((item) => item.id === candidate.id)) continue;
+      if (!elegible(candidate)) continue;
       const node = this._candidateNode(candidate);
       if (!node || !this._nodeVisible(node)) continue;
       const rects = this._candidateRects(candidate, node, camera);
@@ -648,11 +702,33 @@ export class GraphRenderer {
     this._labels = placed;
     this._nextLabels = previous;
     this.scene.labelPlacements = placed;
-    this.scene.labelBudget = budget;
+    this.scene.labelBudget = movil ? presupuesto : elegibles;
     this.scene.visibleBounds.minX = 0;
     this.scene.visibleBounds.minY = 0;
     this.scene.visibleBounds.maxX = right;
     this.scene.visibleBounds.maxY = bottom;
+  }
+
+  /** [Slice E · §3.2] Selección, hover, foco (vista y teclado), foco radial y nodos de la ruta. */
+  _resaltadosDirectos() {
+    const state = this.estado || {};
+    const set = new Set();
+    for (const id of [state.seleccion, state.sobre, state.foco, state.focoTeclado, this.scene.focus]) {
+      const t = texto(id);
+      if (t) set.add(t);
+    }
+    for (const id of this._pathIds) set.add(id);
+    return set;
+  }
+
+  /** Vecinos de un paso de los resaltados: los «enlazados» que también rotulan en escritorio. */
+  _enlazadosCon(directos) {
+    const set = new Set();
+    for (const edge of this.scene.edges || []) {
+      if (directos.has(edge.a)) set.add(edge.b);
+      if (directos.has(edge.b)) set.add(edge.a);
+    }
+    return set;
   }
 
   _tryLabel(rect, candidate, placed, occupied, right, bottom, threshold) {
@@ -708,8 +784,9 @@ export class GraphRenderer {
   _candidateRects(candidate, node, camera) {
     const x = node.x * camera.k + camera.x;
     const y = node.y * camera.k + camera.y;
-    const w = this._measure(candidate.title, '12px system-ui, sans-serif');
-    const h = ETIQUETA_ALTO;
+    // [Slice E · §3.4] Se mide con la misma fuente con la que se dibuja: mono 9px ×√k.
+    const w = this._measure(candidate.title, fuenteRotulo(camera.k, this._labelPriority(candidate) <= 2));
+    const h = anchoRotulo(camera.k);
     const r = node.radio * camera.k + ETIQUETA_ESPACIO;
     const rects = this._rectPool;
     if (this.scene.mode === 'radial') {
@@ -798,14 +875,27 @@ export class GraphRenderer {
       this._edgeDashK = camera.k;
     }
     const sobre = texto(this.estado.sobre);
+    // [Slice E · §3.7] Con una ruta o un foco activo la escena se apaga y la ruta brilla:
+    // directas del foco 0.92/1.6px, tramos de la ruta 0.70/1.25px, todo lo demás 0.025.
+    // El hover (YGR005) manda en sus propias aristas y coexiste con la cascada.
+    const foco = texto(this.estado.foco) || texto(this.estado.seleccion) || texto(this.estado.focoTeclado);
+    const enRuta = this._pathIds;
+    const luminancia = !!foco || enRuta.size > 0;
     for (const edge of this.scene.edges) {
       if (!this._edgeVisible(edge)) continue;
       if (!this._boundsOnScreen(edge.bounds, camera, width, height)) continue;
       const a = this._nodeById.get(edge.a);
       const b = this._nodeById.get(edge.b);
       const encima = !!sobre && (edge.a === sobre || edge.b === sobre);
-      if (ctx.strokeStyle !== undefined) ctx.strokeStyle = this._edgeColor(edge);
-      if (ctx.lineWidth !== undefined) ctx.lineWidth = (encima ? 1.6 : 1.25) / camera.k;
+      let color = this._edgeColor(edge);
+      let grosor = encima ? 1.6 : 1.25;
+      if (luminancia && !encima) {
+        if (foco && (edge.a === foco || edge.b === foco)) { color = conAlfa(color, 0.92); grosor = 1.6; }
+        else if (enRuta.size > 0 && enRuta.has(edge.a) && enRuta.has(edge.b)) { color = conAlfa(color, 0.70); grosor = 1.25; }
+        else { color = conAlfa(color, 0.025); grosor = 0.6; }
+      }
+      if (ctx.strokeStyle !== undefined) ctx.strokeStyle = color;
+      if (ctx.lineWidth !== undefined) ctx.lineWidth = grosor / camera.k;
       if (ctx.setLineDash) ctx.setLineDash(edge.motivo ? DASH_VACIO : this._edgeDash);
       this._strokeEdge(ctx, edge, a, b, options.low);
     }
@@ -815,7 +905,8 @@ export class GraphRenderer {
 
   _drawForeground(ctx, width, height, camera) {
     if (this.scene.mode === 'capas' && typeof ctx.strokeStyle !== 'undefined') ctx.strokeStyle = this.paleta.grid;
-    if (typeof ctx.font !== 'undefined') ctx.font = '12px system-ui, sans-serif';
+    // [Slice E · YGR002] cabeceras de capa con la pila mono (v2110: f(600, 12.5)).
+    if (typeof ctx.font !== 'undefined') ctx.font = fuenteCabecera(camera.k);
     for (const layer of this.scene.layers || []) {
       const x = layer.x * camera.k + camera.x;
       const y0 = layer.y0 * camera.k + camera.y;
@@ -834,12 +925,21 @@ export class GraphRenderer {
       if (!this._boundsOnScreen(bounds, camera, width, height)) continue;
       this._drawNode(ctx, node, camera);
     }
+    // [Slice E · §3.1] Receta strokeText de YGR002, literal: contorno redondo y oscuro en vez del
+    // halo de 3px, texto blanco cuando el rótulo es «fuerte» (selección/hover/ruta/foco, priority
+    // ≤ 2) y casi blanco si no. El flip izquierda/derecha sigue viviendo en _candidateRects.
+    const sk = Math.sqrt(Math.max(0.01, camera.k));
     for (const label of this._labels) {
-      if (typeof ctx.strokeStyle !== 'undefined') ctx.strokeStyle = this.paleta.labelHalo;
-      if (ctx.lineWidth !== undefined) ctx.lineWidth = 3;
-      if (typeof ctx.strokeText === 'function') ctx.strokeText(label.title, label.rect.x, label.rect.y + 13);
-      if (ctx.fillStyle !== undefined) ctx.fillStyle = this.paleta.text;
-      if (typeof ctx.fillText === 'function') ctx.fillText(label.title, label.rect.x, label.rect.y + 13);
+      const fuerte = label.priority <= 2;
+      const baseline = label.rect.y + Math.max(label.rect.h, anchoRotulo(camera.k)) - 5;
+      if (typeof ctx.font !== 'undefined') ctx.font = fuenteRotulo(camera.k, fuerte);
+      if (typeof ctx.lineJoin !== 'undefined') ctx.lineJoin = 'round';
+      if (typeof ctx.miterLimit !== 'undefined') ctx.miterLimit = 2;
+      if (typeof ctx.strokeStyle !== 'undefined') ctx.strokeStyle = 'rgba(6,10,24,0.92)';
+      if (ctx.lineWidth !== undefined) ctx.lineWidth = Math.max(2.2, 3.2 / sk);
+      if (typeof ctx.strokeText === 'function') ctx.strokeText(label.title, label.rect.x, baseline);
+      if (ctx.fillStyle !== undefined) ctx.fillStyle = fuerte ? '#FFFFFF' : 'rgba(230,234,255,0.95)';
+      if (typeof ctx.fillText === 'function') ctx.fillText(label.title, label.rect.x, baseline);
     }
     this._drawIndicators(ctx, camera);
   }
@@ -894,7 +994,9 @@ export class GraphRenderer {
       const x = center.x * camera.k + camera.x;
       const y = (center.y - ring.radio) * camera.k + camera.y;
       // [1.33] Traducido (decía «salto» también en inglés): el rótulo del anillo con su cuenta.
+      // [Slice E] Monospace como en v2110 (f(400, 10.5)).
       if (typeof ctx.fillText === 'function') {
+        if (typeof ctx.font !== 'undefined') ctx.font = `400 ${10.5 * Math.sqrt(camera.k)}px ${FUENTE_ROTULO}`;
         ctx.fillStyle = this.paleta.muted;
         ctx.fillText(`${T('{0} salto(s)', ring.depth)} · ${ring.count}`, x + 6, y - 8);
         if (ring.omitted) {
@@ -950,7 +1052,8 @@ export class GraphRenderer {
     if (this._pathIds.has(edge.a) || this._pathIds.has(edge.b)) return this.paleta.accent;
     const sobre = texto(this.estado.sobre);
     if (sobre && (edge.a === sobre || edge.b === sobre)) return this.paleta.accent;
-    return this.paleta.edge;
+    // [Slice E] Base: explicada rgba(170,185,255,.2); la auxiliar (discontinua, sin motivo) .16.
+    return edge.motivo ? this.paleta.edge : this.paleta.edgeAux;
   }
 
   _nodeColor(node) {
