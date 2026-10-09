@@ -1,6 +1,6 @@
 import { T } from '../i18n.js';
-import { metricas, diagnosticos, vacios } from '../model/analysis.js';
-import { aplicarFiltros, normalizarEstado } from '../view/state.js';
+import { diagnosticos, vacios } from '../model/analysis.js';
+import { normalizarEstado } from '../view/state.js';
 import { renderTablaGrafo } from '../view/table.js';
 
 function text(value) { return value == null ? '' : String(value); }
@@ -82,26 +82,12 @@ export class InspectorController {
     this._call('onResize', this.width); return this;
   }
 
-  setMobile(mobile) { this.mobile = !!mobile; this.element.classList?.toggle('mn-mobile-sheet', this.mobile); this.element.setAttribute('data-mobile', this.mobile ? 'true' : 'false'); if (!this.mobile) this.setWidth(this.width || 380); return this; }
+  setMobile(mobile) { this.mobile = !!mobile; this.element.classList?.toggle('mn-mobile-sheet', this.mobile); this.element.setAttribute('data-mobile', this.mobile ? 'true' : 'false'); this.element.hidden = !!(this.mobile && this._idle); if (!this.mobile) this.setWidth(this.width || 380); return this; }
 
   setGraph(datos) { this.datos = datos || { nodos: [], aristas: [], capas: [], temas: {} }; this.estado = normalizarEstado(this.estado, { datos: this.datos }); return this.update(this.datos, this.estado); }
   setState(state, selectionType = this.selectionType) { this.estado = normalizarEstado(state || {}, { datos: this.datos }); this.selectionType = selectionType; return this.update(this.datos, this.estado); }
   setTransientSelection(id, type = 'nodo') { this.selectedId = text(id); this.selectionType = type === 'arista' ? 'arista' : 'nodo'; return this; }
   getState() { return this.estado; }
-
-  _overview() {
-    const result = this.result || aplicarFiltros(this.datos, this.estado);
-    const metrics = this.metrics || metricas(this.datos, this.estado.filtro);
-    const intro = add(this.content, el(this.document, 'p')); intro.textContent = T('Selecciona una nota o un enlace para ver por qué forma parte del mapa.');
-    const list = add(this.content, el(this.document, 'dl')); list.className = 'mn-overview-metrics';
-    for (const [label, value] of [[T('Notas visibles'), result.conteos.notasVisibles ?? result.conteos.visibles ?? 0], [T('Enlaces visibles'), result.conteos.enlacesVisibles ?? 0], [T('Explicadas'), metrics.explicadas], [T('Fuentes'), result.conteos.fuentes ?? 0]]) {
-      add(list, el(this.document, 'dt')).textContent = label; add(list, el(this.document, 'dd')).textContent = text(value);
-    }
-    const actions = add(this.content, el(this.document, 'div')); actions.className = 'mn-inspector-actions';
-    add(actions, action(this.document, T('Tabla de datos'), () => this._call('onTable'), 'mn-primary'));
-    add(actions, action(this.document, T('Salud'), () => this._call('onHealth')));
-    add(actions, action(this.document, T('Vacíos'), () => this._call('onGaps')));
-  }
 
   _node(node) {
     const id = text(node.id);
@@ -201,25 +187,30 @@ export class InspectorController {
   update(datos = this.datos, state = this.estado, options = {}) {
     this.datos = datos || this.datos; this.estado = normalizarEstado(state || {}, { datos: this.datos });
     this.selectionType = options.selectionType || this.selectionType;
-    this.result = aplicarFiltros(this.datos, this.estado);
-    this.metrics = options.metrics || metricas(this.datos, this.estado.filtro);
     this.healthItems = options.diagnostics || diagnosticos(this.datos);
     this.gapItems = options.gaps || vacios(this.datos);
     this.tableMode = options.tableMode ?? this.estado.panel === 'tabla';
     clear(this.content); this.tableRegion.hidden = !this.tableMode;
     renderTablaGrafo(this.tableRegion, this.datos, this.estado, { onSelect: (id, type) => this._call('onSelect', id, type) });
-    this.element.setAttribute('data-panel', this.estado.panel || 'overview');
+    this.element.setAttribute('data-panel', this.estado.panel || 'idle');
 
     const selectedId = options.selectionId ?? this.selectedId ?? text(this.estado.seleccion);
     if (options.selectionId !== undefined) this.selectedId = text(options.selectionId);
+    // En reposo no hay resumen: el overview (métricas + acciones) vive en la barra inferior de la
+    // escena. El inspector queda vacío en escritorio y oculto en el teléfono, donde una hoja de
+    // 58 vh sin nada que ver solo tapa el mapa.
+    let idle = false;
     if (this.estado.ruta.length) this._path();
     else if (this.estado.panel === 'salud') this._health(this.healthItems);
     else if (this.estado.panel === 'vacios') this._gaps(this.gapItems);
     else if (selectedId && this.selectionType === 'arista') this._edge(text(selectedId));
     else {
       const node = nodesOf(this.datos).find((item) => text(item.id) === text(selectedId));
-      if (node) this._node(node); else { this.title.textContent = T('Resumen del mapa'); this._overview(); }
+      if (node) this._node(node);
+      else { this.title.textContent = ''; idle = !this.tableMode; }
     }
+    this._idle = idle;
+    this.element.hidden = !!(this.mobile && idle);
     if (this.tableMode) this.tableRegion.setAttribute('aria-label', T('Tabla de datos del grafo'));
     return this;
   }

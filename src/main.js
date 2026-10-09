@@ -581,7 +581,21 @@ class VistaMapa extends ItemView {
     this.ayuda.createEl('p', { text: T('Cada línea es un enlace real. Selecciona una nota o un enlace para leer por qué se conecta. Usa Tab para moverte entre los controles y el mapa.') });
     this.ayuda.hidden = !ayudaInicial;
     this.ayuda.open = ayudaInicial;
-    this.leyenda = escena.createEl('section', { cls: 'mn-workbench-legend', attr: { 'aria-label': T('Leyenda del mapa') } });
+    // Pie unificado de la escena (1.36): el resumen que antes vivía en el inspector idle —
+    // métricas y las tres acciones — más la leyenda (con su interruptor) y el zoom, en una sola
+    // franja. areaSegura/enfocar y encuadrar miden este pie: si cambia su alto, cambien ellos.
+    this.pie = escena.createEl('section', { cls: 'mn-workbench-bottombar', attr: { 'aria-label': T('Resumen del mapa') } });
+    const resumen = this.pie.createEl('div', { cls: 'mn-bottombar-summary' });
+    this.pieMetricas = resumen.createEl('dl', { cls: 'mn-overview-metrics mn-bottombar-metrics' });
+    const acciones = resumen.createEl('div', { cls: 'mn-inspector-actions mn-bottombar-actions' });
+    const pieAccion = (etiqueta, clase, fn) => {
+      const boton = acciones.createEl('button', { cls: `mn-inspector-action ${clase}`.trim(), text: etiqueta, attr: { 'aria-label': etiqueta } });
+      boton.onclick = fn;
+    };
+    pieAccion(T('Tabla de datos'), 'mn-primary', () => this.accionTabla());
+    pieAccion(T('Salud'), '', () => this.accionSalud());
+    pieAccion(T('Vacíos'), '', () => this.accionVacios());
+    this.leyenda = this.pie.createEl('section', { cls: 'mn-workbench-legend', attr: { 'aria-label': T('Leyenda del mapa') } });
     const marcas = this.leyenda.createEl('ul');
     for (const [clase, etiqueta] of [['', T('Nota')], ['mn-mark-source', T('Fuente')], ['mn-mark-super', T('Supernodo')], ['mn-mark-health', T('Con problemas')]]) {
       const item = marcas.createEl('li');
@@ -589,6 +603,14 @@ class VistaMapa extends ItemView {
       item.createSpan({ text: etiqueta });
     }
     this.leyenda.hidden = this.plugin.ajustes.mostrarLeyenda === false;
+    const zoom = this.pie.createEl('div', { cls: 'mn-zoom' });
+    const zoomBoton = (texto, etiqueta, fn) => {
+      const boton = zoom.createEl('button', { text: texto, attr: { 'aria-label': etiqueta, title: etiqueta } });
+      boton.onclick = fn;
+    };
+    zoomBoton('−', T('Alejar'), () => this.zoomCamara(1 / 1.3));
+    zoomBoton('⌂', T('Encuadrar'), () => this.encuadrar());
+    zoomBoton('+', T('Acercar'), () => this.zoomCamara(1.3));
     // Barra de chips (novedades, línea de tiempo, herramientas) y el panel flotante compartido.
     this.guia = raiz.createDiv({ cls: 'mn-guia', text: T('Toca una nota para ver por qué se conecta.') });
     this.panel = raiz.createDiv('mn-panel');
@@ -718,6 +740,25 @@ class VistaMapa extends ItemView {
     };
   }
 
+  // El resumen vive en el pie: mismas etiquetas que el viejo overview del inspector y los mismos
+  // números que la toolbar (saliendo del mismo resultado de aplicarFiltros).
+  pintarPie(filtrado = null) {
+    if (!this.pieMetricas) return;
+    const conteos = (filtrado || aplicarFiltros(this.datos, this.estado)).conteos || {};
+    const filas = [
+      [T('Notas visibles'), conteos.notasVisibles ?? conteos.visibles ?? 0],
+      [T('Enlaces visibles'), conteos.enlacesVisibles ?? 0],
+      [T('Explicadas'), conteos.explicadas ?? 0],
+      [T('Fuentes'), conteos.fuentes ?? 0],
+    ];
+    this.pieMetricas.empty();
+    for (const [etiqueta, valor] of filas) {
+      const grupo = this.pieMetricas.createEl('div');
+      grupo.createEl('dt', { text: etiqueta });
+      grupo.createEl('dd', { text: String(valor) });
+    }
+  }
+
   async recargar(result) {
     const adoptable = result && typeof result === 'object' && Array.isArray(result.nodos) && Array.isArray(result.aristas) && Array.isArray(result.capas) && result.temas && typeof result.temas === 'object';
     this.datos = adoptable ? result : await this.store.rebuild(this.app, this.plugin.ajustes);
@@ -744,6 +785,7 @@ class VistaMapa extends ItemView {
       for (const node of this.datos.nodos) if (node.fuente && node.id !== selected && !vecinos.has(node.id)) this.visibles.delete(node.id);
     }
     this.workbenchToolbar?.setState(estado, filtrado);
+    this.pintarPie(filtrado);
     this.workbenchFilters?.setState(estado);
     this.workbenchFilters?.setSourceMode(this.plugin.ajustes.fuentes);
     this.interaccion?.setGraph(this.datos, estado);
@@ -797,8 +839,9 @@ class VistaMapa extends ItemView {
   }
 
   // Zona de la escena libre de barras: la barra de herramientas vive FUERA del lienzo (arriba),
-  // la leyenda y el zoom penden del pie, y en el teléfono el inspector es una hoja inferior de
-  // min(58vh, 560px). Una nota enfocada tiene que caber ahí, no debajo de la hoja.
+  // y el pie unificado (métricas + acciones + leyenda + zoom) ocupa 12 px de offset + 38 px del
+  // control más alto = 50 px en escritorio; en el teléfono la hoja del inspector (58 vh) arranca
+  // más arriba que el pie, así que sigue mandando la hoja. Una nota enfocada tiene que caber ahí.
   areaSegura() {
     const { width, height } = this.viewportSize();
     const movil = Platform.isPhone || width < 640;
@@ -824,6 +867,12 @@ class VistaMapa extends ItemView {
       else this.renderer.setGraph(this.datos, estado);
     }
     this.renderNow();
+  }
+
+  /** Zoom de los botones del pie: misma progresión (×1.3) y mismos límites (0.3–6) que el teclado. */
+  zoomCamara(factor) {
+    const k = Math.max(0.3, Math.min(6, (Number(this.estado.camara.k) || 1) * factor));
+    this.moverCamara({ ...this.estado.camara, k });
   }
 
   /** Hover: enciende el nodo, sus enlaces y su etiqueta sin recalcular visibilidad. */
@@ -926,9 +975,12 @@ class VistaMapa extends ItemView {
     if (!scene) return;
     const b = scene.bounds || { minX: 0, minY: 0, maxX: size.width, maxY: size.height };
     const reserve = Number(this.inspectorWorkbench?.width) || 0;
-    // Márgenes explícitos: 40 px a los lados y arriba, y 60 abajo para que la leyenda y los
-    // botones de zoom no queden encima de las notas al encuadrar.
-    const padIzq = 40, padDer = 40, padArr = 40, padAbajo = 60;
+    // Márgenes explícitos: 40 px a los lados y arriba; abajo, lo que mide la franja del pie:
+    // escritorio 12 + 38 (zoom) = 50, con 10 de aire → 60. En pantalla angosta el pie se envuelve
+    // en dos filas (~80 px) y en el teléfono además sube 68 px sobre la barra de Obsidian.
+    const movilPie = Platform.isPhone || size.width < 640;
+    const padIzq = 40, padDer = 40, padArr = 40;
+    const padAbajo = movilPie ? (Platform.isPhone ? 68 : 12) + 80 + 16 : 60;
     const width = Math.max(1, size.width - (Platform.isPhone ? 0 : reserve));
     const height = Math.max(1, size.height);
     const spanX = Math.max(1, b.maxX - b.minX), spanY = Math.max(1, b.maxY - b.minY);
@@ -1499,9 +1551,6 @@ class VistaMapa extends ItemView {
       onCollapse: (tema) => this.alternarColapso(tema),
       onSummarize: (id) => this.proponerResumen(this.datos.nodos.find((n) => n.id === id)),
       onSuggestReason: (fr) => this.sugerirMotivo(fr),
-      onTable: () => this.accionTabla(),
-      onHealth: () => this.accionSalud(),
-      onGaps: () => this.accionVacios(),
 
       onGapFocus: (candidate) => { this.estado.ruta = [candidate.a, candidate.b]; this.estado.seleccion = null; this.estado.panel = null; this.adoptarEstado(this.estado); },
     };

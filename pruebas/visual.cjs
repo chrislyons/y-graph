@@ -159,6 +159,22 @@ const BEHAVIOR = String.raw`<script>
   gate('button-names', buttonWithoutName.length === 0, buttonWithoutName.length + ' botones sin nombre accesible');
   mark('base DOM');
 
+  // Slice A: el resumen del mapa vive ahora en la franja inferior y el inspector, en reposo, vacío.
+  const bottomBar = document.querySelector('.mn-workbench-bottombar');
+  const barMetricas = bottomBar ? Array.from(bottomBar.querySelectorAll('dl dt')).map((dt) => dt.textContent) : [];
+  const barAcciones = ['Tabla de datos', 'Salud', 'Vacíos'].every((label) => bottomBar && Array.from(bottomBar.querySelectorAll('button')).some((button) => button.getAttribute('aria-label') === label));
+  const idleTitle = v.inspectorWorkbench.title.textContent || '';
+  const idleContent = v.inspectorWorkbench.content.textContent || '';
+  gate('bottom-bar', !!bottomBar
+    && barMetricas.join('|') === 'Notas visibles|Enlaces visibles|Explicadas|Fuentes'
+    && barAcciones
+    && !!bottomBar.querySelector('.mn-workbench-legend ul li')
+    && !!bottomBar.querySelector('.mn-zoom button'),
+    'métricas=' + JSON.stringify(barMetricas) + ', acciones=' + barAcciones + ', leyenda=' + !!bottomBar?.querySelector('.mn-workbench-legend') + ', zoom=' + !!bottomBar?.querySelector('.mn-zoom'));
+  gate('idle-inspector', !idleTitle && !idleContent && v.inspectorWorkbench.element.getAttribute('data-panel') === 'idle',
+    'título=' + JSON.stringify(idleTitle) + ', contenido=' + JSON.stringify(idleContent) + ', data-panel=' + v.inspectorWorkbench.element.getAttribute('data-panel'));
+  mark('bottom bar + idle inspector');
+
   const tableButton = findButton('Tabla de datos') || document.querySelector('.mn-workbench-actions button:nth-last-child(3)');
   if (tableButton) tableButton.click();
   await sleep(50);

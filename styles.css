@@ -292,11 +292,8 @@
 }
 
 .mn-raiz .mn-workbench-legend {
-  position: absolute;
-  z-index: 6;
-  left: max(12px, env(safe-area-inset-left, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  max-width: calc(100% - 164px);
+  /* Ya no flota sobre la escena: es un hijo estático de la franja inferior. */
+  min-width: 0;
   padding: 7px 9px;
   color: var(--mn-text);
   background: var(--mn-surface);
@@ -352,12 +349,10 @@
 }
 
 .mn-raiz .mn-zoom {
-  position: absolute;
-  z-index: 7;
-  right: max(12px, env(safe-area-inset-right, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   display: flex;
+  flex: none;
   gap: 6px;
+  margin-left: auto;
 }
 
 .mn-raiz .mn-zoom button {
@@ -507,6 +502,71 @@
 .mn-raiz .mn-overview-metrics dd,
 .mn-raiz .mn-node-metadata dd {
   margin: 0;
+}
+
+/* Franja inferior unificada (1.36): métricas + acciones a la izquierda, la leyenda con su
+   interruptor en el medio y el zoom a la derecha. El alto real de la franja es el del control más
+   alto (el zoom: 38 px) más 12 px de offset = 50 px: areaSegura/enfocar y encuadrar cuentan esa
+   cifra; si crece esta regla, crecen ellas. z-index 2: por debajo del panel (3) y del inspector
+   (7), como el viejo .mn-zoom del diseño archivado. */
+.mn-raiz .mn-workbench-bottombar {
+  position: absolute;
+  z-index: 2;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mn-raiz .mn-bottombar-summary {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mn-raiz .mn-bottombar-metrics {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px 8px;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mn-raiz .mn-bottombar-metrics::-webkit-scrollbar {
+  display: none;
+}
+
+.mn-raiz .mn-bottombar-metrics > div {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.mn-raiz .mn-bottombar-metrics dt {
+  font-size: 12px;
+}
+
+.mn-raiz .mn-bottombar-metrics dd {
+  font-weight: 650;
+}
+
+.mn-raiz .mn-bottombar-actions {
+  flex: none;
+  margin: 0;
+}
+
+.mn-raiz .mn-workbench-legend {
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .mn-raiz .mn-inspector-action.mn-link-action {
@@ -764,17 +824,28 @@
     top: 112px;
   }
 
+  /* Pantalla angosta: la franja se envuelve en dos filas —acciones arriba, leyenda y zoom
+     abajo— y las métricas se callan: el recuento ya vive en la línea de la toolbar.
+     Con esta lámina el pie mide ~80 px, la cifra que encuadrar usa como reserva inferior. */
+  .mn-raiz .mn-workbench-bottombar {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+
+  .mn-raiz .mn-bottombar-summary {
+    flex: 1 1 100%;
+  }
+
+  .mn-raiz .mn-bottombar-metrics {
+    display: none;
+  }
+
   .mn-raiz .mn-workbench-legend {
-    max-width: calc(100% - 116px);
-    overflow-x: auto;
+    flex: 1 1 auto;
   }
 
   .mn-raiz .mn-workbench-legend ul {
     flex-wrap: nowrap;
-  }
-
-  .mn-raiz .mn-zoom {
-    flex-direction: column;
   }
 
   .mn-raiz .mn-panel {
@@ -889,6 +960,16 @@
 .mn-raiz .mn-resultado:focus { background: rgba(40,48,110,.55); }
 /* Objetivos: 24 px mínimo en el computador (WCAG 2.5.8); en el teléfono 40 px, y 44 los de zoom. */
 .mn-raiz .mn-panel button.mn-ficha { min-height: 24px; }
+/* El teléfono: la franja sube sobre la barra de Obsidian (patrón del .mn-zoom archivado). */
+.is-phone .mn-raiz .mn-workbench-bottombar {
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+}
+
+/* El inspector en reposo no dibuja nada; en el teléfono además se oculta (no hay hoja vacía). */
+.mn-raiz .mn-workbench-inspector[hidden] {
+  display: none;
+}
+
 .is-phone .mn-raiz button.mn-chip, .mn-raiz.angosto button.mn-chip, .is-phone .mn-raiz input.mn-buscar, .mn-raiz.angosto input.mn-buscar { min-height: 40px; }
 .is-phone .mn-raiz .mn-panel button.mn-btn, .mn-raiz.angosto .mn-panel button.mn-btn { height: 40px; min-width: 40px; }
 .is-phone .mn-raiz .mn-panel button.mn-ficha, .mn-raiz.angosto .mn-panel button.mn-ficha { min-height: 36px; }

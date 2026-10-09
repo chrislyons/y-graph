@@ -67,8 +67,11 @@ p.igual('el popover abre semánticamente', filters.element.hidden, false);
 
 const inspectorRoot = doc.createElement('div');
 const selected = [];
-const inspector = new InspectorController({ container: inspectorRoot, document: doc, datos, callbacks: { onSelect: (id, type) => selected.push([id, type]), onTable: () => selected.push(['table']) } });
+const inspector = new InspectorController({ container: inspectorRoot, document: doc, datos, callbacks: { onSelect: (id, type) => selected.push([id, type]) } });
 p.igual('el inspector es complementario y redimensionable', [inspector.element.getAttribute('role'), inspector.resizer.getAttribute('aria-valuemin'), inspector.resizer.getAttribute('aria-valuemax')], ['complementary', '320', '560']);
+// El resumen (métricas + acciones) se mudó a la barra inferior de la escena: en reposo el
+// inspector no dibuja nada — ni el rótulo «Map overview» ni la lista de métricas.
+p.igual('el inspector en reposo no muestra el resumen', [inspector.title.textContent, all(inspector.content, 'dl').length, all(inspector.content, 'p').length, inspector.element.getAttribute('data-panel')], ['', 0, 0, 'idle']);
 inspector.setWidth(200); inspector.setWidth(700);
 p.igual('el ancho se limita entre 320 y 560', inspector.resizer.getAttribute('aria-valuenow'), '560');
 inspector.setTransientSelection('b', 'nodo'); inspector.update(datos, { ...inspector.getState(), seleccion: 'b' }, { selectionId: 'b', selectionType: 'nodo' });
@@ -82,6 +85,8 @@ p.igual('la tabla de datos añade dos tablas semánticas', all(inspector.tableRe
 p.igual('las filas de tabla seleccionan nodos o aristas', all(inspector.tableRegion, 'tr').some((row) => row.getAttribute('data-kind') === 'nodo') && all(inspector.tableRegion, 'tr').some((row) => row.getAttribute('data-kind') === 'arista'), true);
 inspector.setMobile(true);
 p.igual('el inspector móvil se convierte en bottom sheet', inspector.element.getAttribute('data-mobile'), 'true');
+inspector.update(datos, { ...inspector.getState(), panel: null }, { selectionId: '', tableMode: false });
+p.igual('en el teléfono el reposo oculta la hoja (nada de hoja vacía)', [inspector.element.hidden, inspector.title.textContent], [true, '']);
 
 toolbar.destroy(); filters.destroy(); inspector.destroy();
 process.exit(p.cerrar() ? 1 : 0);

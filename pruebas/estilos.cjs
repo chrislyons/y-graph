@@ -89,6 +89,13 @@ p.cierto('la ayuda se crea como details y permanece oculta por defecto', main.in
 p.cierto('el orden de capas se entrega al renderer', main.includes('ordenCapas: this.plugin.ajustes.ordenCapas'));
 p.cierto('la vista radial entrega la profundidad al renderer', main.includes('profundidadRadial: this.plugin.ajustes.profundidadRadial'));
 p.cierto('la leyenda tiene lista y texto junto a las marcas', main.includes("createEl('ul')") && main.includes("createSpan({ text: etiqueta })"));
+// Slice A: el resumen del mapa dejó de ser un modal del inspector y vive en la franja inferior.
+p.cierto('la franja inferior nace en la escena', main.includes("cls: 'mn-workbench-bottombar'") && main.includes("cls: 'mn-zoom'"));
+p.cierto('la franja lleva las cuatro métricas con las mismas etiquetas del resumen', ['Notas visibles', 'Enlaces visibles', 'Explicadas', 'Fuentes'].every((etiqueta) => main.includes(`T('${etiqueta}')`)));
+p.cierto('la franja lleva las tres acciones del resumen', ['Tabla de datos', 'Salud', 'Vacíos'].every((etiqueta) => main.includes(`pieAccion(T('${etiqueta}')`)));
+p.cierto('los controles del zoom vuelven a la escena', ['Alejar', 'Encuadrar', 'Acercar'].every((etiqueta) => main.includes(`T('${etiqueta}')`)));
+const inspectorSrc = fs.readFileSync(path.join(__dirname, '../src/ui/inspector.js'), 'utf8');
+p.cierto('el inspector ya no dibuja el resumen en reposo', !inspectorSrc.includes('_overview') && !inspectorSrc.includes('Resumen del mapa') && inspectorSrc.includes("this.estado.panel || 'idle'"));
 p.cierto('el controlador usa GraphStore, GraphRenderer e InteractionController', ['GraphStore', 'GraphRenderer', 'createInteractionController'].every((name) => main.includes(name)));
 p.cierto('no conserva nombres privados de layout, hit-test o export heredados', ['hitTestLegacy', 'nodoEn', 'medirRadial', 'dibujarEscena', 'paletaVisual', 'registrarGestos', 'calcularVacios', 'rehacer', 'rendererLegacy'].every((name) => !main.includes(name)));
 p.cierto('no conserva aliases privados de datos o selección', ['this.D', 'this.N', 'this.E', 'this.porId', 'this.foco', 'this.radial'].every((name) => !main.includes(name)));
