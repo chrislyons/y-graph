@@ -1,0 +1,23 @@
+{
+  "capas": "Router Cards\nStreams\nGateways\nI/O Cards\nConsoles\nStageboxes\nStudios\n",
+  "carpetas": "router-cards = 0\nstreams = 1\ngateways = 2\ncards = 3\nconsoles = 4\nboxes = 5\nstudios = 6\n",
+  "propiedadTema": "tema",
+  "temas": "",
+  "excluir": "",
+  "fuentes": "demanda",
+  "carpetasFuentes": "",
+  "seguirActiva": true,
+  "carpetaExport": "Mapa neuronal",
+  "animacion": true,
+  "proveedorIA": "claude",
+  "modeloIA": "claude-opus-5",
+  "urlLocal": "http://localhost:11434/v1/chat/completions",
+  "dobleVerificacion": true,
+  "propiedadEnlaces": "",
+  "propiedadFecha": "",
+  "carpetaAuditoria": "Mapa neuronal/aprobaciones",
+  "seccionMotivos": "Connections",
+  "configurado": true,
+  "maxPorCapa": 1000,
+  "ordenAlfabetico": true
+}

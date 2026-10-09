@@ -1,0 +1,23 @@
+{
+  "capas": "Sources\nInputs\nDirect Outs\nAux Outs\nTrack Outs\nGroups\nMains\nMonitors\nIntercom\nStudio Outputs\n",
+  "carpetas": "sources = 0\ninput-channels = 1\ndirect-outs = 2\naux-outs = 3\ntrack-outs = 4\ngroups = 5\nmains = 6\nmonitors = 7\nintercom = 8\nstudio-outputs = 9\n",
+  "propiedadTema": "tema",
+  "temas": "mics = Dialogue & Commentary = #3B82F6\nplayback = Video & Replay = #10B981\nlines = Inbound Stadium Lines = #F59E0B\nmasters = Master Program = #EF4444\nmonitoring = Monitoring = #8B5CF6\ncomms = Intercom & Logic = #EC4899\n",
+  "excluir": "INDEX, SPR, SPR001, SPR002, SPR003, repo-commands, VCA Master X, VCA Master Y, VCA Master Z, VCA Master W",
+  "fuentes": "demanda",
+  "carpetasFuentes": "",
+  "seguirActiva": true,
+  "carpetaExport": "Mapa neuronal",
+  "animacion": true,
+  "proveedorIA": "claude",
+  "modeloIA": "claude-opus-5",
+  "urlLocal": "http://localhost:11434/v1/chat/completions",
+  "dobleVerificacion": true,
+  "propiedadEnlaces": "",
+  "propiedadFecha": "",
+  "carpetaAuditoria": "Mapa neuronal/aprobaciones",
+  "seccionMotivos": "Connections",
+  "configurado": true,
+  "maxPorCapa": 1000,
+  "ordenAlfabetico": false
+}
