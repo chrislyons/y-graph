@@ -315,6 +315,14 @@ export function layoutCapas(grafo, viewport, opciones = {}) {
     for (const [indice, columna] of columnas) for (const nodo of columna) columnasPorId.set(nodo.id, indice);
     ordenarAutomaticamente([...columnas.values()], preparado.adyacencia, preparado.topics, columnasPorId);
   }
+  // [1.35] Con temas de contenido, la entrada se lee por tiempo (lo más nuevo arriba) y la capa de
+  // temas por cuántas notas reúnen: esas dos columnas quedan fijas, sin baricentro.
+  const conContenido = preparado.nodos.some((nodo) => nodo.contenido);
+  if (conContenido) {
+    const capaCont = Math.max(...preparado.nodos.filter((nodo) => nodo.contenido).map((nodo) => nodo.capa));
+    const c0 = columnas.get(0); if (c0) c0.sort((a, b) => ((b.fecha || 0) - (a.fecha || 0)) || compararAlfabetico(a, b));
+    const cc = columnas.get(capaCont); if (cc) cc.sort((a, b) => (b.grado - a.grado) || compararAlfabetico(a, b));
+  }
   const indices = [...columnas.keys()].sort((a, b) => a - b);
   const n = Math.max(indices.length, 2);
   const margen = Math.max(120, width * 0.1);

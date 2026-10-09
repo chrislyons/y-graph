@@ -542,6 +542,22 @@ const EN = {
   'Sí, proponer motivo': 'Yes, propose a reason',
   'No, descartar': 'No, dismiss',
   'Ocultar vínculos por revisar': 'Hide links to review',
+
+  // temas de contenido (1.35)
+  'Una línea por tema («seguridad = Seguridad»). La última capa del mapa pasa a ser esos temas; vacío = la última capa vuelve a ser las carpetas.':
+    'One line per topic («security = Security»). The map’s last layer becomes those topics; empty = the last layer goes back to folders.',
+  'Temas de contenido': 'Content topics',
+  'Ninguna nota de tu vault tiene tags en el frontmatter: no hay temas que sugerir.': 'No note in your vault has tags in its frontmatter: there are no topics to suggest.',
+  'Marca los tags que nombran un tema (seguridad, agentes…), no un tipo ni un estado de página (decisión, pendiente…). Cada uno será un nodo en la última capa, unido a las notas que lo llevan.': 'Mark the tags that name a topic (security, agents…), not a page type or state (decision, pending…). Each one becomes a node in the last layer, linked to the notes that carry it.',
+  'Cancelar': 'Cancel',
+  'Guardar temas': 'Save topics',
+  '{0} temas de contenido guardados. El mapa se recarga.': '{0} content topics saved. The map reloads.',
+  'Sin temas de contenido: la última capa vuelve a armarse con las carpetas.': 'No content topics: the last layer is built from the folders again.',
+  'Sugerir temas de contenido': 'Suggest content topics',
+  'Lista los tags de tu vault por frecuencia para que marques cuáles son temas.': 'Lists your vault\'s tags by frequency so you can mark which ones are topics.',
+  'Sugerir desde el vault': 'Suggest from the vault',
+  'declara el tag «{0}»': 'declares the tag «{0}»',
+  'Tema de contenido: reúne las {0} notas que declaran el tag «{1}».': 'Content topic: gathers the {0} notes that declare the tag «{1}».',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
 export const enEspanol = () => {

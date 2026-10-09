@@ -414,6 +414,11 @@ class Sesion {
     const tel = this.disp.telefono;
     if (v.barra) v.barra._rect = { top: 10, left: 12, right: ancho - 12, bottom: tel ? 140 : 70, width: ancho - 24, height: tel ? 130 : 60 };
     if (v.panel) v.panel._rect = tel ? { top: alto * 0.48, left: 8, right: ancho - 8, bottom: alto - 58, width: ancho - 16, height: alto * 0.52 - 58 } : { top: 92, left: ancho - 392, right: ancho - 12, bottom: alto - 60, width: 380, height: alto - 152 };
+    // El inspector (dónde el fork muestra la nota) también mide: en el teléfono es la hoja inferior.
+    const insp = v.inspectorWorkbench && v.inspectorWorkbench.element;
+    if (insp) insp._rect = tel
+      ? { top: alto - 8 - Math.min(alto * 0.58, 560), left: 8, right: ancho - 8, bottom: alto - 8, width: ancho - 16, height: Math.min(alto * 0.58, 560) }
+      : { top: 98, left: ancho - 392, right: ancho - 10, bottom: alto - 54, width: 380, height: alto - 152 };
     if (v.lienzo) v.lienzo._rect = { top: 0, left: 0, right: ancho, bottom: alto, width: ancho, height: alto };
   }
   // Obsidian avisa «resolved» cuando termina de indexar un cambio.

@@ -514,9 +514,11 @@ const RECORRIDOS = {
     const s = await M.abrir('iphone', { telefono: true }); await s.abrirMapa();
     const v = s.vista, n = v.N.filter((x) => !x.oculto && x.capa === 1).sort((a, b) => b.y - a.y)[0];
     await s.toca(n.titulo);
-    const y = n.y * v.vista.k + v.vista.y, panel = v.panel.getBoundingClientRect();
-    if (!v.panel.hasClass('abierto')) M.hallazgo('tocar no abre el panel', n.titulo);
-    else if (y > panel.top) M.hallazgo('la nota tocada queda bajo el panel', `${n.titulo}: y=${Math.round(y)} y el panel empieza en ${Math.round(panel.top)}`);
+    // El fork muestra la nota en el inspector (hoja inferior en el teléfono), no en .mn-panel.
+    const y = n.y * v.vista.k + v.vista.y, panel = (v.inspectorWorkbench && v.inspectorWorkbench.element) || v.panel;
+    const abierto = v.estado.panel === 'nota';
+    if (!abierto) M.hallazgo('tocar no abre el panel', n.titulo);
+    else if (y > panel.getBoundingClientRect().top) M.hallazgo('la nota tocada queda bajo el panel', `${n.titulo}: y=${Math.round(y)} y el panel empieza en ${Math.round(panel.getBoundingClientRect().top)}`);
     await M.cerrar();
   },
   async 'aprobar lo mismo otra vez no duplica'(M) {

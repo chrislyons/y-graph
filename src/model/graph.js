@@ -11,6 +11,36 @@ export function fechaDeNota(f, fm, s = {}) {
   return isNaN(d) ? (f.stat?.mtime || 0) : d;
 }
 
+// ── Temas de contenido (1.35): tags del frontmatter que nombran un tema ───────────────────────
+const normalizarTag = (t) => String(t || '').trim().replace(/^#/, '').toLowerCase();
+export const tagsDe = (fm) => [].concat(fm?.tags ?? fm?.tag ?? []).flatMap((x) => String(x).replace(/^\[|\]$/g, '').split(/[,\s]+/)).map(normalizarTag).filter(Boolean);
+export { normalizarTag };
+const TAGS_DE_ESTADO = 'reutilizable, bloqueado, pendiente';
+export const tagsDeEstadoDe = (s) => new Set(String(s.tagsDeEstado ?? TAGS_DE_ESTADO).split(/[,\n]/).map((x) => normalizarTag(x.trim())).filter(Boolean));
+// El ajuste «temasDeContenido»: una línea por tema («seguridad = Seguridad»). El nombre es lo que
+// se ve en el mapa; sin nombre, se deriva del tag.
+export function temasDeContenidoDe(s) {
+  const m = new Map();
+  for (const l of String(s.temasDeContenido || '').split('\n')) {
+    const [v, nombre] = l.split('=').map((x) => (x || '').trim());
+    const k = normalizarTag(v);
+    if (k && !m.has(k)) m.set(k, nombre || v);
+  }
+  return m;
+}
+// Tags del vault por frecuencia, sin la línea de negocio (ya son temas), sin tipo de página ni
+// estado: eso lo decide la persona, nada de clasificar con IA.
+export function tagsDelVault(app, ajustes) {
+  const negocio = new Set(Object.keys(leerAjustes(ajustes).temas).map(normalizarTag)), tipos = new Set(), cuenta = {};
+  for (const f of app.vault.getMarkdownFiles()) {
+    const fm = app.metadataCache.getFileCache(f)?.frontmatter || {};
+    for (const t of [].concat(fm.tipo ?? fm.type ?? [])) tipos.add(normalizarTag(t));
+    for (const t of new Set(tagsDe(fm))) cuenta[t] = (cuenta[t] || 0) + 1;
+  }
+  const estados = tagsDeEstadoDe(ajustes);
+  return Object.entries(cuenta).filter(([t]) => !negocio.has(t) && !tipos.has(t) && !estados.has(t)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
 // Fuentes: rutas explícitas a archivos de las carpetas configuradas. Se aceptan tildes y espacios
 // cuando la ruta va entre acentos graves, en un [[wikilink]] o en un enlace (…); suelta en el texto,
 // solo hasta el primer espacio. Texto que se parece a una ruta pero no resuelve a un archivo o
@@ -142,6 +172,7 @@ export function crearRegistro(app, archivo, texto, mtime = null, s = {}) {
     resumen: fm.resumen ? String(fm.resumen) : resumir(cuerpo), enlaces: Object.freeze(enlaces), alias,
     hub: fm.hub === true || String(fm.hub).toLowerCase() === 'true',
     fecha: fechaDeNota(archivo, fm, s),
+    tags: tagsDe(fm),
     curados: Object.freeze(curados), lineas: Object.freeze(lineas), finCuerpo,
     citas: Object.freeze(carpetasF.length ? citasDe(cuerpo, carpetasF).map((c) => Object.freeze({ ruta: c.ruta, linea: c.linea })) : []),
   });
@@ -155,6 +186,10 @@ function mapaRegistros(registros) {
 // autoridad para los enlaces es el resolvedLinks que el llamador captura en esta reconstrucción.
 export function construirDesdeRegistros(app, s, registros, resueltos = app.metadataCache.resolvedLinks) {
   const cfg = leerAjustes(s);
+  // [1.35] Con temas de contenido, la última capa son esos temas (nodos sin archivo) y lo que las
+  // carpetas mandaban ahí (las síntesis) baja a la capa anterior. Sin la lista, nada cambia.
+  const contenido = temasDeContenidoDe(s), modoContenido = contenido.size > 0 && cfg.capas.length >= 2;
+  const capaTemas = cfg.capas.length - 1;
   const records = mapaRegistros(registros);
   const nodos = {}, porRuta = {}, aristas = new Map();
   const poner = (a, b, m) => { const k = a < b ? a + '|' + b : b + '|' + a; if (!aristas.has(k) || (m && !aristas.get(k))) aristas.set(k, m || ''); };
@@ -165,13 +200,16 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
   };
   const todas = app.vault.getMarkdownFiles();
   for (const f of todas) {
-    const capa = capaDe(f.path), registro = records.get(f.path);
+    let capa = capaDe(f.path);
+    const registro = records.get(f.path);
     if (capa < 0 || cfg.excluir.has(f.basename) || !registro) continue;
+    if (modoContenido && capa === capaTemas) capa--;   // las síntesis bajan una capa
     if (registro.tema && !cfg.temas[registro.tema]) cfg.temas[registro.tema] = [registro.tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
     nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: registro.titulo, tema: registro.tema,
       propio: !!registro.tema, updated: registro.updated, resumenAprobado: registro.resumenAprobado,
       resumen: registro.resumen, enlaces: registro.enlaces.map((e) => ({ ...e })), alias: registro.alias || [], hub: registro.hub,
-      fecha: registro.fecha };
+      fecha: registro.fecha,
+      temasContenido: modoContenido ? [...new Set(registro.tags || [])].filter((t) => contenido.has(t)) : [] };
     porRuta[f.path] = f.path;
   }
   // Validación de la config: carpetas que no tienen ninguna nota y notas que no caen en capa alguna.
@@ -219,6 +257,17 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
       if (!citas[k]) citas[k] = { origen: id, linea: c.linea };
     }
   }
+  // [1.35] Un nodo por tema de contenido que alguna nota declara, y un enlace a cada nota que lo
+  // declara, con su motivo: el tag lo dice.
+  if (modoContenido) {
+    const paginas = {};
+    for (const f of todas) { const b = f.basename.toLowerCase(); paginas[b] ??= f.path; }
+    for (const n of Object.values(nodos)) for (const t of n.temasContenido || []) {
+      const id = 'contenido:' + t;
+      nodos[id] ??= { id, capa: capaTemas, ruta: paginas['tema-' + t] || paginas[t] || '', titulo: (contenido.get(t) || t).slice(0, 90), tema: null, propio: false, virtual: true, contenido: t, fecha: null, grado: 0, sinMotivo: 0 };
+      poner(n.id, id, T('declara el tag «{0}»', t));
+    }
+  }
   // Inventario y «sin vínculo»: qué hay en las carpetas de fuentes y qué no cita ninguna nota del
   // mapa. Las notas fuera del mapa (excluidas o en carpetas sin capa) se leen solo para poder decir
   // «citada por una nota fuera del mapa», que no es lo mismo que sin cita en todo el vault.
@@ -249,7 +298,13 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
   }
   const ordenTema = Object.fromEntries(Object.keys(cfg.temas).map((t, i) => [t, i]));
   const cols = cfg.capas.map((_, i) => Object.values(nodos).filter((n) => n.capa === i));
-  cols.forEach((c) => c.sort((p, q) => (ordenTema[p.tema] ?? 99) - (ordenTema[q.tema] ?? 99) || q.grado - p.grado));
+  // [1.35] Con temas de contenido, la entrada se lee por tiempo y los temas por cuántas notas
+  // reúnen; esas dos capas no se reordenan para cruzar menos curvas.
+  const fija = (capa) => modoContenido && (capa === 0 || capa === capaTemas);
+  const ordenFijo = (capa) => (capa === 0
+    ? (p, q) => (q.fecha || 0) - (p.fecha || 0) || p.titulo.localeCompare(q.titulo)
+    : (p, q) => (s.ordenTemas === 'alfabetico' ? 0 : q.grado - p.grado) || p.titulo.localeCompare(q.titulo));
+  cols.forEach((c, capa) => c.sort(fija(capa) ? ordenFijo(capa) : (p, q) => (ordenTema[p.tema] ?? 99) - (ordenTema[q.tema] ?? 99) || q.grado - p.grado));
   const pos = {};
   const indexar = () => cols.forEach((c) => c.forEach((n, i) => (pos[n.id] = i / Math.max(c.length - 1, 1))));
   indexar();
@@ -257,6 +312,7 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
   // Antes solo contaban las contiguas y un enlace L0→L4 no influía en nada: en vaults densos
   // esas curvas largas cruzaban todo el mapa sin que el orden vertical las acomodara.
   for (let it = 0; it < 6; it++) cols.forEach((c, capa) => {
+    if (fija(capa)) return;
     c.forEach((n) => {
       let suma = 0, peso = 0;
       for (const v of vecinos[n.id]) { const d = Math.abs(nodos[v].capa - capa); if (!d) continue; suma += pos[v] / d; peso += 1 / d; }
@@ -267,7 +323,7 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
   });
   return { nodos: cols.flat(), aristas: [...aristas].map(([k, m]) => [...k.split('|'), m, frases[k] || null, citas[k] || null]), capas: cfg.capas, temas: cfg.temas,
     fuentes: { carpetas: carpetasF, inventario: inventario.length, citadas, sinVinculo },
-    config: { carpetasVacias, sinCapa } };
+    config: { carpetasVacias, sinCapa }, contenido: modoContenido };
 }
 
 export async function construir(app, s) {

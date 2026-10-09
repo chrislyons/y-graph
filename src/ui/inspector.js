@@ -117,6 +117,7 @@ export class InspectorController {
     add(actions, action(this.document, T('Camino'), () => this._call('onPath', id)));
     if (node.tema && (node.agrupados || node.capa === (this.datos.capas?.length || 1) - 1)) add(actions, action(this.document, T('Expandir o colapsar'), () => this._call('onCollapse', node.tema)));
     if (node.resumen && !node.resumenAprobado && !node.fuente && !node.virtual && !node.agrupados) add(actions, action(this.document, T('Resumir con IA'), () => this._call('onSummarize', id)));
+    if (node.contenido) { const rol = add(this.content, el(this.document, 'div')); rol.className = 'mn-rol'; rol.textContent = T('Tema de contenido: reúne las {0} notas que declaran el tag «{1}».', edges.length, node.contenido); }
     if (node.resumen && !node.fuente && !node.virtual && !node.agrupados) {
       const rs = add(this.content, el(this.document, 'div'));
       rs.className = 'mn-resumen2' + (node.resumenAprobado ? '' : ' mn-extraido');

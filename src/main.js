@@ -83,7 +83,7 @@
  */
 import { Plugin, ItemView, PluginSettingTab, Setting, Modal, Menu, Notice, Platform, debounce, requestUrl, normalizePath, setIcon } from 'obsidian';
 import { T, enEspanol } from './i18n.js';
-import { leerAjustes, carpetasFuentesDe } from './model/graph.js';
+import { leerAjustes, carpetasFuentesDe, temasDeContenidoDe, tagsDelVault, tagsDeEstadoDe, normalizarTag } from './model/graph.js';
 import { buscarFuera } from './model/search.js';
 import {
   PARRAFOS_RECORDADOS, comoPatron, claveAlias, nombreNota, normalizarCita, citaEnTexto,
@@ -442,6 +442,32 @@ function fuenteDeClip(fm) {
     if (h === 'github.com') return 'repo';
     return h;
   } catch { return ''; }
+}
+
+class SugerirTemas extends Modal {
+  constructor(app, plugin, alGuardar) { super(app); this.plugin = plugin; this.alGuardar = alGuardar; }
+  onOpen() {
+    const { contentEl: c } = this, p = this.plugin; c.empty(); c.addClass('mn-sugerir-temas');
+    this.setTitle(T('Temas de contenido'));
+    const lista = tagsDelVault(this.app, p.ajustes), actuales = temasDeContenidoDe(p.ajustes), elegidos = new Set(actuales.keys());
+    if (!lista.length && !actuales.size) { c.createEl('p', { text: T('Ninguna nota de tu vault tiene tags en el frontmatter: no hay temas que sugerir.') }); return; }
+    c.createEl('p', { cls: 'setting-item-description', text: T('Marca los tags que nombran un tema (seguridad, agentes…), no un tipo ni un estado de página (decisión, pendiente…). Cada uno será un nodo en la última capa, unido a las notas que lo llevan.') });
+    const caja = c.createDiv('mn-sugerir-lista');
+    for (const [t, n] of lista.slice(0, 120)) new Setting(caja).setName('#' + t).setDesc(T('{0} nota(s)', n))
+      .addToggle((x) => x.setValue(elegidos.has(t)).onChange((v) => { if (v) elegidos.add(t); else elegidos.delete(t); }));
+    new Setting(c)
+      .addButton((b) => b.setButtonText(T('Cancelar')).onClick(() => this.close()))
+      .addButton((b) => b.setButtonText(T('Guardar temas')).setCta().onClick(async () => {
+        const nombre = (t) => actuales.get(t) || (t.length <= 3 ? t.toUpperCase() : (t.charAt(0).toUpperCase() + t.slice(1)).replace(/[-_]+/g, ' '));
+        const orden = [...[...actuales.keys()].filter((t) => elegidos.has(t)), ...lista.map(([t]) => t).filter((t) => elegidos.has(t) && !actuales.has(t))];
+        p.ajustes.temasDeContenido = orden.map((t) => `${t} = ${nombre(t)}`).join('\n');
+        await p.guardar(); this.close();
+        new Notice(orden.length ? T('{0} temas de contenido guardados. El mapa se recarga.', orden.length) : T('Sin temas de contenido: la última capa vuelve a armarse con las carpetas.'));
+        p.app.workspace.getLeavesOfType(VISTA).forEach((h) => h.view.recargar?.());
+        this.alGuardar?.();
+      }));
+  }
+  onClose() { this.contentEl.empty(); }
 }
 
 class VistaMapa extends ItemView {
@@ -829,16 +855,28 @@ class VistaMapa extends ItemView {
     this.eligiendo = null;
     if (centrar && this.estado.modo === 'radial') this.encuadrar();
     this.adoptarEstado(this.estado);
-    if (centrar && this.estado.modo !== 'radial' && this.renderer?.scene) {
+    if (this.estado.modo !== 'radial' && this.renderer?.scene) {
       const node = this.renderer.scene.nodes.find((item) => item.id === id);
       const size = this.viewportSize();
       if (node) {
         // El centro vertical cae en el aire libre de la escena (leyenda/zoom abajo; en el
         // teléfono, encima de la hoja del inspector): enfocar no esconde la nota bajo el panel.
         const area = this.areaSegura();
-        this.estado.camara.x = size.width * 0.42 - node.x * this.estado.camara.k;
-        this.estado.camara.y = (area.arriba + area.abajo) / 2 - node.y * this.estado.camara.k;
-        this.adoptarEstado(this.estado);
+        const k = this.estado.camara.k;
+        if (centrar) {
+          this.estado.camara.x = size.width * 0.42 - node.x * k;
+          this.estado.camara.y = (area.arriba + area.abajo) / 2 - node.y * k;
+          this.adoptarEstado(this.estado);
+        } else {
+          // Tocar una nota que quedó bajo el panel la trae al aire libre; las que ya se ven no
+          // mueven la cámara (el desplazamiento solo cambia la coordenada vertical).
+          const eff = this.renderer.camera();
+          const screenY = node.y * eff.k + eff.y;
+          if (screenY > area.abajo || screenY < area.arriba) {
+            this.estado.camara.y += (area.arriba + area.abajo) / 2 - screenY;
+            this.adoptarEstado(this.estado);
+          }
+        }
       }
     }
   }
@@ -1566,6 +1604,10 @@ class AjustesMapa extends PluginSettingTab {
     new Setting(c).setName(T('Orden de las capas')).setDesc(T('Elige el orden de las notas dentro de cada capa.'))
       .addDropdown((d) => d.addOptions({ auto: T('Automático'), alfabetico: T('Alfabético'), reciente: T('Más recientes') }).setValue(p.ajustes.ordenCapas)
         .onChange(async (v) => { p.ajustes = normalizarAjustes({ ...p.ajustes, ordenCapas: v }); await p.guardar(); }));
+    new Setting(c).setName(T('Temas de contenido')).setDesc(T('Una línea por tema («seguridad = Seguridad»). La última capa del mapa pasa a ser esos temas; vacío = la última capa vuelve a ser las carpetas.'))
+      .addTextArea((t) => t.setValue(p.ajustes.temasDeContenido).onChange(async (v) => { p.ajustes.temasDeContenido = v; await p.guardar(); }));
+    new Setting(c).setName(T('Sugerir temas de contenido')).setDesc(T('Lista los tags de tu vault por frecuencia para que marques cuáles son temas.'))
+      .addButton((b) => b.setButtonText(T('Sugerir desde el vault')).onClick(() => new SugerirTemas(this.app, p, () => this.refrescar()).open()));
     new Setting(c).setName(T('Profundidad radial')).setDesc(T('Cuántos saltos alrededor de la nota seleccionada muestra la vista radial.'))
       .addSlider((s) => s.setLimits(1, 4, 1).setValue(p.ajustes.profundidadRadial).setDynamicTooltip()
         .onChange(async (v) => { p.ajustes.profundidadRadial = v; await p.guardar(); }));
