@@ -1,6 +1,6 @@
 {
-  "capas": "Sources\nInputs\nDirect Outs\nAux Outs\nTrack Outs\nGroups\nMains\nMonitors\nIntercom\nStudio Outputs\n",
-  "carpetas": "sources = 0\ninput-channels = 1\ndirect-outs = 2\naux-outs = 3\ntrack-outs = 4\ngroups = 5\nmains = 6\nmonitors = 7\nintercom = 8\nstudio-outputs = 9\n",
+  "capas": "Sources | \nInputs | \nDirect Outs | \nAux Outs | \nTrack Outs | \nGroups | \nMains | \nMonitors | \nIntercom | \nStudio Outputs | ",
+  "carpetas": "aux-outs = 3\ndirect-outs = 2\ngroups = 5\ninput-channels = 1\nintercom = 8\nmains = 6\nmonitors = 7\nsources = 0\nstudio-outputs = 9\ntrack-outs = 4",
   "propiedadTema": "tema",
   "temas": "mics = Dialogue & Commentary = #3B82F6\nplayback = Video & Replay = #10B981\nlines = Inbound Stadium Lines = #F59E0B\nmasters = Master Program = #EF4444\nmonitoring = Monitoring = #8B5CF6\ncomms = Intercom & Logic = #EC4899\n",
   "excluir": "INDEX, SPR, SPR001, SPR002, SPR003, repo-commands, VCA Master X, VCA Master Y, VCA Master Z, VCA Master W",

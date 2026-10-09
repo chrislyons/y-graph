@@ -1,22 +1,41 @@
-# Why Graph settings archive — known-good vault states
+# Why Graph known-good state archive — Cloudkicker vaults
 
-Captured 2026-10-08 from the local Cloudkicker vaults, before merging their preferred
-aesthetics into the fork (YGR007).
+Captured 2026-10-08 from the **local Cloudkicker** vaults (not Whitebox), before merging their
+preferred aesthetics into the fork (YGR007). Each vault has a COMPLETE plugin snapshot:
+`<vault>.data.json` + `<vault>.main.js` + `<vault>.manifest.json` + `<vault>.styles.css`.
 
-| Vault | manifest | main.js md5 | styles.css md5 | strokeText (fork marker) |
-|---|---|---|---|---|
-| research-vault | 1.35.0-y.1 (our deploy) | `1d625c298f37c86b29e40db4393679c2` | `6a1d61c2feb8a66f7f00cc70d84ab2e6` | 1 |
-| 2110-audio-io | 1.31.0 (pre-rebase fork era) | `f8f9f1291912a6f1c11c1312091a14a4` | `f41cb148f7972195950686a9d1bee883` | 1 |
-| sports-primetime | 1.35.0 | `90dfd3a0676330dd162f82e4b23902d3` | `f41cb148f7972195950686a9d1bee883` | 1 |
+## Why the builds matter (irreplaceable)
 
-Files:
+| Vault | manifest | main.js md5 | note |
+|---|---|---|---|
+| research-vault | 1.35.0-y.1 | `1d625c298f37c86b29e40db4393679c2` | our fork deploy — rebuildable from y-graph `07c449c` |
+| 2110-audio-io | 1.31.0 | `f8f9f1291912a6f1c11c1312091a14a4` | **YGR002 broadcast display engine over upstream 1.31 — exists NOWHERE else in any git history** |
+| sports-primetime | 1.35.0 | `90dfd3a0676330dd162f82e4b23902d3` | sibling custom build (3 151 lines, same lineage) |
 
-- `<vault>.data.json` — the plugin settings as found (no secrets live here; API keys stay in
-  Obsidian local storage).
-- `styles-2110-sports.f41cb148.css` — the stylesheet BOTH preferred-aesthetic vaults share;
-  distinct from every known release (pre-merge fork `328c2295…`, upstream 1.31 `b3228a6f…`,
-  upstream 1.35 `fa6be0c3…`, current fork `6a1d61c2…`), i.e. likely hand-tuned.
+The 2110/sports engines carry the YGR002 features the Sep-25 redesign dropped: stroke-outline
+typography, tutti/density labels with `zoomCapa`, 9px monospace labels, natural alphanumeric
+ordering, route luminance cascade, console trace boundaries. The only prior copies were in
+gitignored `.claude/scratch/` — these committed snapshots are now the canonical fallback.
 
-User verdict being preserved: graph visuals were best **before the 1.35.0 updates**; the
-1.35 nav chrome (chips bar, panels) is welcome; the 1.35 Map Overview modal is not —
-it belongs in the plugin's bottom navbar instead.
+## Shared stylesheet
+
+- `styles-2110-sports.f41cb148.css` — both preferred vaults share it (28 068 B): hand-tuned,
+  upstream-DOM lineage, **dark-only by design, monospace chrome**. Matches no tag and no fork
+  state; also snapshotted per vault as `<vault>.styles.css`.
+
+## Config facts driving the merge (YGR007)
+
+- `maxPorCapa: 1000` in both specialized vaults (fork ceiling was 600 — clamping them today).
+- `ordenAlfabetico` key (2110: `true`, sports: `false`) — fork lacks the key; migration maps it
+  to `ordenCapas: 'alfabetico'`.
+- sports carries a rich `temas` color map + `excluir` list; research-vault carries the
+  six-layer research scheme + 1.35 ingestion keys.
+
+## Liveness warning
+
+`sports-primetime.data.json` changed between first capture (md5 `93a7790…`) and re-capture
+(md5 `0f0827d…`) within the same hour — Obsidian rewrites `data.json` while the vault is open.
+Re-run the capture immediately before any future migration work.
+
+User verdict preserved: graph visuals were best **before the 1.35.0 updates** (i.e. the YGR002
+engine); the 1.35 nav chrome is welcome; the Map Overview belongs in the bottom navbar.

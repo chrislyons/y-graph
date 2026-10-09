@@ -1,0 +1,918 @@
+/* Why Graph: surface, controls and graph companion follow the active Obsidian theme. */
+.view-content.mn-raiz {
+  padding: 0;
+}
+
+.mn-raiz {
+  --mn-bg: var(--background-primary, #fff);
+  --mn-surface: var(--background-secondary, #f4f4f4);
+  --mn-border: var(--background-modifier-border, #c7c7c7);
+  --mn-text: var(--text-normal, #111);
+  --mn-muted: var(--text-muted, #555);
+  --mn-grid: var(--background-modifier-border, #c7c7c7);
+  --mn-accent: var(--interactive-accent, #3b5ccc);
+  --mn-danger: var(--text-error, #b42318);
+  --mn-warning: var(--text-warning, #805400);
+  --mn-success: var(--text-success, #16794a);
+  --mn-label-halo: var(--background-primary, #fff);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--mn-text);
+  background: var(--mn-bg);
+  font-family: var(--font-interface);
+  font-size: 13px;
+  color-scheme: light dark;
+}
+
+/* Explicit Obsidian mode selectors also work when a theme changes after the view opens. */
+.theme-light .mn-raiz[data-mn-theme="tema"] {
+  --mn-bg: var(--background-primary, #fff);
+  --mn-surface: var(--background-secondary, #f4f4f4);
+  --mn-border: var(--background-modifier-border, #c7c7c7);
+  --mn-text: var(--text-normal, #111);
+  --mn-muted: var(--text-muted, #555);
+  --mn-grid: var(--background-modifier-border, #c7c7c7);
+  --mn-accent: var(--interactive-accent, #3b5ccc);
+  --mn-danger: var(--text-error, #b42318);
+  --mn-warning: var(--text-warning, #805400);
+  --mn-success: var(--text-success, #16794a);
+  --mn-label-halo: var(--background-primary, #fff);
+  color-scheme: light;
+}
+
+.theme-dark .mn-raiz[data-mn-theme="tema"] {
+  --mn-bg: var(--background-primary, #111);
+  --mn-surface: var(--background-secondary, #202020);
+  --mn-border: var(--background-modifier-border, #666);
+  --mn-text: var(--text-normal, #f2f2f2);
+  --mn-muted: var(--text-muted, #b8b8b8);
+  --mn-grid: var(--background-modifier-border, #666);
+  --mn-accent: var(--interactive-accent, #9aa8ff);
+  --mn-danger: var(--text-error, #ff8a80);
+  --mn-warning: var(--text-warning, #ffd166);
+  --mn-success: var(--text-success, #70d6a0);
+  --mn-label-halo: var(--background-primary, #111);
+  color-scheme: dark;
+}
+
+/* The former star field is deliberately opt-in. */
+.mn-raiz[data-mn-theme="noche"] {
+  --mn-bg: #060a18;
+  --mn-surface: #0a0f26;
+  --mn-border: #7782b8;
+  --mn-text: #e6eaff;
+  --mn-muted: #aab2d0;
+  --mn-grid: #465080;
+  --mn-accent: #b79cff;
+  --mn-danger: #ff8a80;
+  --mn-warning: #ffd166;
+  --mn-success: #70d6a0;
+  --mn-label-halo: #060a18;
+  color-scheme: dark;
+}
+
+.mn-raiz .mn-workbench-scene {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mn-bg);
+}
+
+.mn-raiz .mn-lienzo {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.mn-raiz .mn-lienzo.mn-sobre-nodo {
+  cursor: pointer;
+}
+
+.mn-raiz .mn-workbench-toolbar {
+  position: relative;
+  z-index: 8;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) 8px max(10px, env(safe-area-inset-left, 0px));
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border-bottom: 1px solid var(--mn-border);
+}
+
+.mn-raiz .mn-workbench-primary,
+.mn-raiz .mn-workbench-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mn-raiz .mn-workbench-primary h1 {
+  flex: none;
+  margin: 0;
+  font: 650 14px/1.2 var(--font-interface);
+  letter-spacing: .02em;
+}
+
+.mn-raiz .mn-workbench-metrics {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--mn-muted);
+  font: 12px/1.2 var(--font-interface);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mn-raiz .mn-workbench-primary input {
+  flex: 1 1 180px;
+  min-width: 120px;
+  max-width: 280px;
+  margin-left: auto;
+  color: var(--mn-text);
+  background: var(--mn-bg);
+  border-color: var(--mn-border);
+}
+
+.mn-raiz .mn-workbench-actions {
+  flex-wrap: wrap;
+}
+
+.mn-raiz .mn-workbench-segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--mn-border);
+  border-radius: 7px;
+}
+
+.mn-raiz .mn-workbench-segmented .mn-workbench-mode {
+  border: 0;
+  border-radius: 0;
+}
+
+.mn-raiz button.mn-workbench-button,
+.mn-raiz button.mn-inspector-action,
+.mn-raiz button.mn-chip,
+.mn-raiz .mn-zoom button,
+.mn-raiz .mn-panel button.mn-btn,
+.mn-raiz .mn-panel button.mn-ficha {
+  min-height: 30px;
+  height: auto;
+  padding: 4px 9px;
+  color: var(--mn-text);
+  background: var(--mn-bg);
+  border: 1px solid var(--mn-border);
+  border-radius: 7px;
+  box-shadow: none;
+  font: 500 12px/1.25 var(--font-interface);
+}
+
+.mn-raiz button.mn-workbench-button:hover:not(:disabled),
+.mn-raiz button.mn-inspector-action:hover:not(:disabled),
+.mn-raiz button.mn-chip:hover:not(:disabled),
+.mn-raiz .mn-panel button.mn-btn:hover:not(:disabled) {
+  background: var(--mn-surface);
+  border-color: var(--mn-accent);
+}
+
+.mn-raiz button.mn-workbench-button[aria-pressed="true"],
+.mn-raiz button.mn-chip.activo,
+.mn-raiz .mn-panel button.mn-btn-primario {
+  color: var(--text-on-accent, #fff);
+  background: var(--mn-accent);
+  border-color: var(--mn-accent);
+}
+
+.mn-raiz button:disabled,
+.mn-raiz button.mn-chip.apagado {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.mn-raiz button:focus-visible,
+.mn-raiz input:focus-visible,
+.mn-raiz select:focus-visible,
+.mn-raiz summary:focus-visible,
+.mn-raiz canvas:focus-visible,
+.mn-raiz [tabindex]:focus-visible,
+.mn-raiz [role="separator"]:focus-visible,
+.mn-raiz tr:focus-visible {
+  outline: 2px solid var(--mn-accent);
+  outline-offset: 2px;
+}
+
+.mn-raiz .mn-workbench-scene [role="group"] {
+  position: absolute;
+  inset: 0;
+}
+
+.mn-raiz .mn-workbench-scene [role="group"] > ul,
+.mn-raiz .mn-workbench-scene [role="group"] > p,
+.mn-raiz .mn-workbench-scene [role="group"] > div:not(.mn-lienzo) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.mn-raiz .mn-workbench-scene [role="group"] > canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.mn-raiz .mn-workbench-scene [role="group"] > ul[id^="why-graph-search-"] {
+  position: absolute;
+  z-index: 9;
+  top: 50px;
+  left: 12px;
+  width: min(360px, calc(100% - 24px));
+  height: auto;
+  max-height: 45vh;
+  overflow: auto;
+  padding: 6px;
+  clip-path: none;
+  white-space: normal;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+.mn-raiz .mn-workbench-scene [role="group"] > ul[id^="why-graph-search-"] li {
+  padding: 5px;
+}
+
+.mn-raiz .mn-workbench-legacy-chips,
+.mn-raiz .mn-workbench-legacy-state {
+  display: none !important;
+}
+
+.mn-raiz .mn-workbench-help {
+  position: absolute;
+  z-index: 9;
+  top: 92px;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  width: min(360px, calc(100% - 24px));
+  padding: 9px 11px;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 9px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+}
+
+.mn-raiz .mn-workbench-help[hidden] {
+  display: none;
+}
+
+.mn-raiz .mn-workbench-help summary {
+  color: var(--mn-text);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.mn-raiz .mn-workbench-help p {
+  margin: 8px 0 2px;
+  color: var(--mn-muted);
+  line-height: 1.45;
+}
+
+.mn-raiz .mn-workbench-legend {
+  position: absolute;
+  z-index: 6;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  max-width: calc(100% - 164px);
+  padding: 7px 9px;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 8px;
+  box-shadow: 0 5px 18px rgb(0 0 0 / 14%);
+}
+
+.mn-raiz .mn-workbench-legend[hidden] {
+  display: none;
+}
+
+.mn-raiz .mn-workbench-legend ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mn-raiz .mn-workbench-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.mn-raiz .mn-legend-mark {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  color: var(--mn-accent);
+  background: transparent;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.mn-raiz .mn-legend-mark.mn-mark-source {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.mn-raiz .mn-legend-mark.mn-mark-super {
+  box-shadow: 0 0 0 2px var(--mn-surface), 0 0 0 4px currentColor;
+}
+
+.mn-raiz .mn-legend-mark.mn-mark-health {
+  color: var(--mn-danger);
+  border-style: dashed;
+}
+
+.mn-raiz .mn-zoom {
+  position: absolute;
+  z-index: 7;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 6px;
+}
+
+.mn-raiz .mn-zoom button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-weight: 650;
+}
+
+.mn-raiz .mn-workbench-filters {
+  position: absolute;
+  z-index: 12;
+  top: 76px;
+  left: max(10px, env(safe-area-inset-left, 0px));
+  width: min(340px, calc(100% - 20px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding: 12px;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
+}
+
+.mn-raiz .mn-workbench-filters[hidden],
+.mn-raiz .mn-inspector-table[hidden] {
+  display: none;
+}
+
+.mn-raiz .mn-workbench-filters h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.mn-raiz .mn-workbench-filters fieldset {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0;
+  border: 1px solid var(--mn-border);
+  border-radius: 7px;
+}
+
+.mn-raiz .mn-workbench-filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mn-raiz .mn-workbench-filters select,
+.mn-raiz .mn-workbench-filters input[type="number"] {
+  min-width: 0;
+  color: var(--mn-text);
+  background: var(--mn-bg);
+  border-color: var(--mn-border);
+}
+
+.mn-raiz .mn-filter-summary,
+.mn-raiz .mn-workbench-filters p {
+  color: var(--mn-muted);
+  font-size: 12px;
+}
+
+.mn-raiz .mn-workbench-inspector {
+  position: absolute;
+  z-index: 7;
+  top: 98px;
+  right: max(10px, env(safe-area-inset-right, 0px));
+  bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  min-width: 320px;
+  max-width: 560px;
+  overflow: hidden;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgb(0 0 0 / 22%);
+}
+
+.mn-raiz .mn-inspector-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--mn-border);
+}
+
+.mn-raiz .mn-inspector-header h2 {
+  flex: 1;
+  margin: 0;
+  font: 650 15px/1.3 var(--font-interface);
+}
+
+.mn-raiz .mn-inspector-content,
+.mn-raiz .mn-inspector-table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.mn-raiz .mn-inspector-table {
+  border-top: 1px solid var(--mn-border);
+}
+
+.mn-raiz .mn-inspector-table table + table {
+  margin-top: 14px;
+}
+
+.mn-raiz .mn-inspector-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 10px;
+  cursor: col-resize;
+}
+
+.mn-raiz .mn-inspector-actions,
+.mn-raiz .mn-acciones,
+.mn-raiz .mn-fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.mn-raiz .mn-overview-metrics,
+.mn-raiz .mn-node-metadata {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr;
+  gap: 5px 10px;
+}
+
+.mn-raiz .mn-overview-metrics dt,
+.mn-raiz .mn-node-metadata dt,
+.mn-raiz .mn-capa,
+.mn-raiz .mn-meta,
+.mn-raiz .mn-frase-etq,
+.mn-raiz .mn-ruta {
+  color: var(--mn-muted);
+}
+
+.mn-raiz .mn-overview-metrics dd,
+.mn-raiz .mn-node-metadata dd {
+  margin: 0;
+}
+
+.mn-raiz .mn-inspector-action.mn-link-action {
+  padding: 0;
+  color: var(--text-accent, var(--mn-accent));
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.mn-raiz .mn-inspector table,
+.mn-raiz .mn-inspector-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.mn-raiz .mn-inspector caption,
+.mn-raiz .mn-inspector-table caption {
+  margin: 10px 0 5px;
+  text-align: left;
+  font-weight: 650;
+}
+
+.mn-raiz .mn-inspector th,
+.mn-raiz .mn-inspector td,
+.mn-raiz .mn-inspector-table th,
+.mn-raiz .mn-inspector-table td {
+  padding: 5px;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--mn-border);
+}
+
+.mn-raiz .mn-inspector-table tbody tr:nth-child(even),
+.mn-raiz .mn-inspector tbody tr:nth-child(even) {
+  background: var(--mn-bg);
+}
+
+.mn-raiz .mn-inspector-table tr[aria-selected="true"],
+.mn-raiz .mn-inspector tbody tr[aria-selected="true"] {
+  outline: 2px solid var(--mn-accent);
+  outline-offset: -2px;
+}
+
+.mn-raiz .mn-inspector ul,
+.mn-raiz .mn-inspector ol {
+  padding-inline-start: 1.25rem;
+}
+
+.mn-raiz .mn-health-list strong {
+  color: var(--mn-danger);
+}
+
+.mn-raiz .mn-gap-list strong {
+  color: var(--mn-accent);
+}
+
+.mn-raiz .mn-workbench-inspector[data-mobile="true"],
+.mn-raiz .mn-workbench-inspector.mn-mobile-sheet {
+  top: auto;
+  right: max(8px, env(safe-area-inset-right, 0px));
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  left: max(8px, env(safe-area-inset-left, 0px));
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: min(58vh, 560px);
+  border-radius: 14px 14px 8px 8px;
+}
+
+.mn-raiz .mn-workbench-inspector[data-mobile="true"] .mn-inspector-resizer {
+  display: none;
+}
+
+/* Legacy aliases remain styled, but only inside the workbench root. */
+.mn-raiz .mn-barra,
+.mn-raiz .mn-chips,
+.mn-raiz .mn-estado,
+.mn-raiz .mn-guia {
+  color: var(--mn-muted);
+}
+
+.mn-raiz .mn-marca {
+  color: var(--mn-text);
+}
+
+.mn-raiz .mn-punto {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--mn-accent);
+  border-radius: 50%;
+}
+
+.mn-raiz .mn-panel {
+  position: absolute;
+  z-index: 3;
+  top: 92px;
+  right: 12px;
+  bottom: 60px;
+  display: none;
+  width: min(380px, calc(100% - 24px));
+  overflow: hidden;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgb(0 0 0 / 22%);
+}
+
+.mn-raiz .mn-panel.abierto {
+  display: flex;
+  flex-direction: column;
+}
+
+.mn-raiz .mn-cab,
+.mn-raiz .mn-lista {
+  padding: 12px 14px;
+}
+
+.mn-raiz .mn-cab {
+  border-bottom: 1px solid var(--mn-border);
+}
+
+.mn-raiz .mn-lista {
+  overflow-y: auto;
+}
+
+.mn-raiz .mn-ojo,
+.mn-raiz .mn-falta,
+.mn-raiz .mn-estado {
+  color: var(--mn-danger);
+}
+
+.mn-raiz .mn-grupo,
+.mn-raiz .mn-grupo2,
+.mn-raiz .mn-rol {
+  color: var(--mn-muted);
+}
+
+.mn-raiz .mn-grupo,
+.mn-raiz .mn-grupo2 {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.mn-raiz .mn-con,
+.mn-raiz .mn-paso,
+.mn-raiz .mn-enlace {
+  color: var(--mn-text);
+  border-color: var(--mn-border);
+}
+
+.mn-raiz .mn-motivo,
+.mn-raiz .mn-frase,
+.mn-raiz .mn-ayuda,
+.mn-raiz .mn-salto,
+.mn-raiz .mn-ia-cita,
+.mn-raiz .mn-ia-rev {
+  color: var(--mn-muted);
+}
+
+.mn-raiz .mn-alerta {
+  border-color: var(--mn-danger);
+}
+
+.mn-raiz .mn-externo,
+.mn-raiz .mn-panel button.mn-ficha.fuente {
+  border-color: var(--mn-accent);
+}
+
+.mn-raiz .mn-num {
+  color: var(--text-on-accent, #fff);
+  background: var(--mn-accent);
+}
+
+.mn-raiz .mn-resumen,
+.mn-raiz .mn-explica,
+.mn-raiz .mn-ia-caja {
+  color: var(--mn-text);
+  background: var(--mn-bg);
+  border-color: var(--mn-border);
+}
+
+.mn-raiz .mn-ia-estado {
+  color: var(--mn-accent);
+}
+
+.mn-raiz .mn-ia-caja.rechazada {
+  border-color: var(--mn-danger);
+}
+
+.mn-raiz .mn-ia-caja.guardada,
+.mn-raiz .mn-ia-guardado {
+  color: var(--mn-success);
+  border-color: var(--mn-success);
+}
+
+.mn-raiz .mn-tenue {
+  color: var(--mn-muted);
+}
+
+.mn-raiz .mn-resultados {
+  position: absolute;
+  z-index: 6;
+  top: 100%;
+  left: 0;
+  display: none;
+  min-width: 260px;
+  max-width: 420px;
+  max-height: 50vh;
+  overflow: auto;
+  padding: 4px;
+  color: var(--mn-text);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+}
+
+.mn-raiz .mn-resultados.mostrar,
+.mn-raiz .mn-resultados[style*="display: block"] {
+  display: block;
+}
+
+.mn-raiz .mn-resultado:hover,
+.mn-raiz .mn-enlace:hover {
+  background: var(--mn-bg);
+}
+
+@media (max-width: 640px) {
+  .mn-raiz .mn-workbench-primary {
+    flex-wrap: wrap;
+  }
+
+  .mn-raiz .mn-workbench-primary input {
+    flex: 1 1 150px;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .mn-raiz .mn-workbench-metrics {
+    flex: 1 1 100%;
+  }
+
+  .mn-raiz .mn-workbench-actions {
+    gap: 6px;
+  }
+
+  .mn-raiz .mn-workbench-filters {
+    top: 112px;
+  }
+
+  .mn-raiz .mn-workbench-legend {
+    max-width: calc(100% - 116px);
+    overflow-x: auto;
+  }
+
+  .mn-raiz .mn-workbench-legend ul {
+    flex-wrap: nowrap;
+  }
+
+  .mn-raiz .mn-zoom {
+    flex-direction: column;
+  }
+
+  .mn-raiz .mn-panel {
+    top: auto;
+    right: max(8px, env(safe-area-inset-right, 0px));
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    left: max(8px, env(safe-area-inset-left, 0px));
+    width: auto;
+    height: 52%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mn-raiz *,
+  .mn-raiz *::before,
+  .mn-raiz *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+.mn-pie { margin-top: 18px; display: flex; align-items: center; gap: 8px; color: var(--text-faint, #666); font: 11.5px var(--font-interface); }
+.mn-pie a { display: inline-flex; align-items: center; opacity: .78; }
+.mn-pie a:hover { opacity: 1; }
+/* La variante clara es la de por defecto: si un tema no pone .theme-light ni .theme-dark,
+   el logo tiene que verse igual, no desaparecer en silencio. */
+.mn-marca-dbb { display: block; width: 84px; height: 16px; background-repeat: no-repeat; background-position: left center; background-size: contain; background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9Ii0yMC4wIC0xNzAgMTAwMC4wIDE5MCIgd2lkdGg9IjIwMDAiIGhlaWdodD0iMzgwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkRCQi4gTGFicyI+CiAgPHRpdGxlPkRCQi4gTGFicyDigJQgd29yZG1hcmsgKyBkaXZpc29yLCBwYXJhIGZvbmRvIG1hcmZpbDwvdGl0bGU+CiAgPGRlc2M+T3BjacOzbiBCLiBXb3JkbWFyayBEQkIuIHNpbiBtb2RpZmljYXIsIGNvcGlhZG8gZGVzZGUgZmFtaWxpYS1sb2dvLzAxLXByaW5jaXBhbC9kYmItcHJpbmNpcGFsLnN2ZyAoY3VydmFzLCBBcmNoaXZvIDgwMCBleHBhbmRlZCwKICB0cmFja2luZyAtMC4wMmVtKS4gIkxhYnMiIGFncmVnYWRvIGVuIEFyY2hpdm8gNDAwLCBzZXBhcmFkbyBwb3IgdW5hIGzDrW5lYSBkZSByZXTDrWN1bGEg4oCUIG5vIGVzIHVuIHPDrW1ib2xvIG51ZXZvLjwvZGVzYz4KICA8cGF0aCBmaWxsPSIjMjQyMzIxIiBkPSJNMTcuMCAwLjBWLTEzNy42SDkzLjgwMDAwMDAwMDAwMDAxUTExOS4yIC0xMzcuNiAxMzcuNiAtMTI5LjZRMTU2LjAgLTEyMS42MDAwMDAwMDAwMDAwMSAxNjUuOCAtMTA2LjIwMDAwMDAwMDAwMDAyUTE3NS42MDAwMDAwMDAwMDAwMiAtOTAuODAwMDAwMDAwMDAwMDEgMTc1LjYwMDAwMDAwMDAwMDAyIC02OC44UTE3NS42MDAwMDAwMDAwMDAwMiAtNDYuNiAxNjUuOCAtMzEuM1ExNTYuMCAtMTYuMCAxMzcuNiAtOC4wUTExOS4yIDAuMCA5My44MDAwMDAwMDAwMDAwMSAwLjBaTTU3LjYgLTMwLjIwMDAwMDAwMDAwMDAwM0g5MS40UTEwMS4wIC0zMC4yMDAwMDAwMDAwMDAwMDMgMTA4LjcgLTMyLjdRMTE2LjQgLTM1LjIgMTIyLjAgLTM5LjgwMDAwMDAwMDAwMDAwNFExMjcuNjAwMDAwMDAwMDAwMDEgLTQ0LjQwMDAwMDAwMDAwMDAwNiAxMzAuNzAwMDAwMDAwMDAwMDIgLTUxLjJRMTMzLjggLTU4LjAgMTMzLjggLTY2LjYwMDAwMDAwMDAwMDAxVi03MS4yUTEzMy44IC03OS44MDAwMDAwMDAwMDAwMSAxMzAuNzAwMDAwMDAwMDAwMDIgLTg2LjVRMTI3LjYwMDAwMDAwMDAwMDAxIC05My4yIDEyMi4wIC05Ny44MDAwMDAwMDAwMDAwMVExMTYuNCAtMTAyLjQgMTA4LjcgLTEwNC45UTEwMS4wIC0xMDcuNCA5MS40IC0xMDcuNEg1Ny42WiBNMTk5LjYwMDAwMDAwMDAwMDAyIDAuMFYtMTM3LjZIMzEyLjZRMzIzLjgwMDAwMDAwMDAwMDA3IC0xMzcuNiAzMzIuODAwMDAwMDAwMDAwMDcgLTEzMy4zUTM0MS44MDAwMDAwMDAwMDAwNyAtMTI5LjAgMzQ3LjEgLTEyMS40UTM1Mi40MDAwMDAwMDAwMDAwMyAtMTEzLjgwMDAwMDAwMDAwMDAxIDM1Mi40MDAwMDAwMDAwMDAwMyAtMTAzLjYwMDAwMDAwMDAwMDAxUTM1Mi40MDAwMDAwMDAwMDAwMyAtOTQuNjAwMDAwMDAwMDAwMDEgMzQ5LjIwMDAwMDAwMDAwMDA1IC04OC4yMDAwMDAwMDAwMDAwMlEzNDYuMCAtODEuODAwMDAwMDAwMDAwMDEgMzQwLjUgLTc3LjgwMDAwMDAwMDAwMDAxUTMzNS4wIC03My44IDMyOC40MDAwMDAwMDAwMDAwMyAtNzEuOFYtNzEuMFEzMzYuMjAwMDAwMDAwMDAwMDUgLTY5LjQgMzQyLjQwMDAwMDAwMDAwMDAzIC02NS4zMDAwMDAwMDAwMDAwMVEzNDguNiAtNjEuMiAzNTIuMjAwMDAwMDAwMDAwMDUgLTU0LjJRMzU1LjgwMDAwMDAwMDAwMDA3IC00Ny4yIDM1NS44MDAwMDAwMDAwMDAwNyAtMzcuMlEzNTUuODAwMDAwMDAwMDAwMDcgLTI1LjQwMDAwMDAwMDAwMDAwMiAzNTAuMSAtMTcuMVEzNDQuNDAwMDAwMDAwMDAwMDMgLTguOCAzMzQuODAwMDAwMDAwMDAwMDcgLTQuNFEzMjUuMjAwMDAwMDAwMDAwMDUgMC4wIDMxMy4yMDAwMDAwMDAwMDAwNSAwLjBaTTI0MC4yMDAwMDAwMDAwMDAwMiAtMjkuMEgyOTkuNlEzMDYuMCAtMjkuMCAzMTAuMCAtMzIuNVEzMTQuMCAtMzYuMCAzMTQuMCAtNDMuMlEzMTQuMCAtNDcuMCAzMTIuMyAtNTAuMFEzMTAuNiAtNTMuMCAzMDcuMjAwMDAwMDAwMDAwMDUgLTU0LjdRMzAzLjggLTU2LjQwMDAwMDAwMDAwMDAwNiAyOTkuMCAtNTYuNDAwMDAwMDAwMDAwMDA2SDI0MC4yMDAwMDAwMDAwMDAwMlpNMjQwLjIwMDAwMDAwMDAwMDAyIC04My4ySDI5Ni4yMDAwMDAwMDAwMDAwNVEzMDAuOCAtODMuMiAzMDQuMCAtODQuOVEzMDcuMjAwMDAwMDAwMDAwMDUgLTg2LjYwMDAwMDAwMDAwMDAxIDMwOS4wMDAwMDAwMDAwMDAwNiAtODkuNjAwMDAwMDAwMDAwMDFRMzEwLjgwMDAwMDAwMDAwMDA3IC05Mi42MDAwMDAwMDAwMDAwMSAzMTAuODAwMDAwMDAwMDAwMDcgLTk2LjgwMDAwMDAwMDAwMDAxUTMxMC44MDAwMDAwMDAwMDAwNyAtMTAyLjYwMDAwMDAwMDAwMDAxIDMwNi44MDAwMDAwMDAwMDAwNyAtMTA2LjEwMDAwMDAwMDAwMDAxUTMwMi44IC0xMDkuNjAwMDAwMDAwMDAwMDEgMjk2LjggLTEwOS42MDAwMDAwMDAwMDAwMUgyNDAuMjAwMDAwMDAwMDAwMDJaIE0zNzguNDAwMDAwMDAwMDAwMDMgMC4wVi0xMzcuNkg0OTEuNDAwMDAwMDAwMDAwMDNRNTAyLjYgLTEzNy42IDUxMS42IC0xMzMuM1E1MjAuNiAtMTI5LjAgNTI1LjkwMDAwMDAwMDAwMDEgLTEyMS40UTUzMS4yIC0xMTMuODAwMDAwMDAwMDAwMDEgNTMxLjIgLTEwMy42MDAwMDAwMDAwMDAwMVE1MzEuMiAtOTQuNjAwMDAwMDAwMDAwMDEgNTI4LjAgLTg4LjIwMDAwMDAwMDAwMDAyUTUyNC44MDAwMDAwMDAwMDAxIC04MS44MDAwMDAwMDAwMDAwMSA1MTkuMzAwMDAwMDAwMDAwMSAtNzcuODAwMDAwMDAwMDAwMDFRNTEzLjgwMDAwMDAwMDAwMDEgLTczLjggNTA3LjIwMDAwMDAwMDAwMDA1IC03MS44Vi03MS4wUTUxNS4wIC02OS40IDUyMS4yIC02NS4zMDAwMDAwMDAwMDAwMVE1MjcuNDAwMDAwMDAwMDAwMSAtNjEuMiA1MzEuMCAtNTQuMlE1MzQuNiAtNDcuMiA1MzQuNiAtMzcuMlE1MzQuNiAtMjUuNDAwMDAwMDAwMDAwMDAyIDUyOC45MDAwMDAwMDAwMDAxIC0xNy4xUTUyMy4yIC04LjggNTEzLjYgLTQuNFE1MDQuMCAwLjAgNDkyLjAgMC4wWk00MTkuMDAwMDAwMDAwMDAwMDYgLTI5LjBINDc4LjQwMDAwMDAwMDAwMDAzUTQ4NC44MDAwMDAwMDAwMDAwNyAtMjkuMCA0ODguODAwMDAwMDAwMDAwMDcgLTMyLjVRNDkyLjgwMDAwMDAwMDAwMDA3IC0zNi4wIDQ5Mi44MDAwMDAwMDAwMDAwNyAtNDMuMlE0OTIuODAwMDAwMDAwMDAwMDcgLTQ3LjAgNDkxLjEgLTUwLjBRNDg5LjQwMDAwMDAwMDAwMDAzIC01My4wIDQ4Ni4wIC01NC43UTQ4Mi42IC01Ni40MDAwMDAwMDAwMDAwMDYgNDc3LjgwMDAwMDAwMDAwMDA3IC01Ni40MDAwMDAwMDAwMDAwMDZINDE5LjAwMDAwMDAwMDAwMDA2Wk00MTkuMDAwMDAwMDAwMDAwMDYgLTgzLjJINDc1LjAwMDAwMDAwMDAwMDA2UTQ3OS42IC04My4yIDQ4Mi44MDAwMDAwMDAwMDAwNyAtODQuOVE0ODYuMDAwMDAwMDAwMDAwMDYgLTg2LjYwMDAwMDAwMDAwMDAxIDQ4Ny44MDAwMDAwMDAwMDAwNyAtODkuNjAwMDAwMDAwMDAwMDFRNDg5LjYgLTkyLjYwMDAwMDAwMDAwMDAxIDQ4OS42IC05Ni44MDAwMDAwMDAwMDAwMVE0ODkuNiAtMTAyLjYwMDAwMDAwMDAwMDAxIDQ4NS42IC0xMDYuMTAwMDAwMDAwMDAwMDFRNDgxLjYgLTEwOS42MDAwMDAwMDAwMDAwMSA0NzUuNiAtMTA5LjYwMDAwMDAwMDAwMDAxSDQxOS4wMDAwMDAwMDAwMDAwNloiLz4KICA8cGF0aCBmaWxsPSIjRjI2NTIyIiBkPSJNNTUzLjQwMDAwMDAwMDAwMDEgMC4wVi0zNi42SDU5Ny4wVjAuMFoiLz4KICA8bGluZSB4MT0iNjMyIiB5MT0iOCIgeDI9IjYzMiIgeTI9Ii0xNDUuNiIgc3Ryb2tlPSIjQzlDNEJBIiBzdHJva2Utd2lkdGg9IjIiIG9wYWNpdHk9IjAuNyIvPgogIDx0ZXh0IHg9IjY2MiIgeT0iMCIgZm9udC1mYW1pbHk9IkFyY2hpdm8sSGVsdmV0aWNhLEFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI0MDAiIGZvbnQtc2l6ZT0iMTIwIiBmaWxsPSIjMjQyMzIxIj5MYWJzPC90ZXh0Pgo8L3N2Zz4K"); }
+.theme-light .mn-marca-dbb { background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9Ii0yMC4wIC0xNzAgMTAwMC4wIDE5MCIgd2lkdGg9IjIwMDAiIGhlaWdodD0iMzgwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkRCQi4gTGFicyI+CiAgPHRpdGxlPkRCQi4gTGFicyDigJQgd29yZG1hcmsgKyBkaXZpc29yLCBwYXJhIGZvbmRvIG1hcmZpbDwvdGl0bGU+CiAgPGRlc2M+T3BjacOzbiBCLiBXb3JkbWFyayBEQkIuIHNpbiBtb2RpZmljYXIsIGNvcGlhZG8gZGVzZGUgZmFtaWxpYS1sb2dvLzAxLXByaW5jaXBhbC9kYmItcHJpbmNpcGFsLnN2ZyAoY3VydmFzLCBBcmNoaXZvIDgwMCBleHBhbmRlZCwKICB0cmFja2luZyAtMC4wMmVtKS4gIkxhYnMiIGFncmVnYWRvIGVuIEFyY2hpdm8gNDAwLCBzZXBhcmFkbyBwb3IgdW5hIGzDrW5lYSBkZSByZXTDrWN1bGEg4oCUIG5vIGVzIHVuIHPDrW1ib2xvIG51ZXZvLjwvZGVzYz4KICA8cGF0aCBmaWxsPSIjMjQyMzIxIiBkPSJNMTcuMCAwLjBWLTEzNy42SDkzLjgwMDAwMDAwMDAwMDAxUTExOS4yIC0xMzcuNiAxMzcuNiAtMTI5LjZRMTU2LjAgLTEyMS42MDAwMDAwMDAwMDAwMSAxNjUuOCAtMTA2LjIwMDAwMDAwMDAwMDAyUTE3NS42MDAwMDAwMDAwMDAwMiAtOTAuODAwMDAwMDAwMDAwMDEgMTc1LjYwMDAwMDAwMDAwMDAyIC02OC44UTE3NS42MDAwMDAwMDAwMDAwMiAtNDYuNiAxNjUuOCAtMzEuM1ExNTYuMCAtMTYuMCAxMzcuNiAtOC4wUTExOS4yIDAuMCA5My44MDAwMDAwMDAwMDAwMSAwLjBaTTU3LjYgLTMwLjIwMDAwMDAwMDAwMDAwM0g5MS40UTEwMS4wIC0zMC4yMDAwMDAwMDAwMDAwMDMgMTA4LjcgLTMyLjdRMTE2LjQgLTM1LjIgMTIyLjAgLTM5LjgwMDAwMDAwMDAwMDAwNFExMjcuNjAwMDAwMDAwMDAwMDEgLTQ0LjQwMDAwMDAwMDAwMDAwNiAxMzAuNzAwMDAwMDAwMDAwMDIgLTUxLjJRMTMzLjggLTU4LjAgMTMzLjggLTY2LjYwMDAwMDAwMDAwMDAxVi03MS4yUTEzMy44IC03OS44MDAwMDAwMDAwMDAwMSAxMzAuNzAwMDAwMDAwMDAwMDIgLTg2LjVRMTI3LjYwMDAwMDAwMDAwMDAxIC05My4yIDEyMi4wIC05Ny44MDAwMDAwMDAwMDAwMVExMTYuNCAtMTAyLjQgMTA4LjcgLTEwNC45UTEwMS4wIC0xMDcuNCA5MS40IC0xMDcuNEg1Ny42WiBNMTk5LjYwMDAwMDAwMDAwMDAyIDAuMFYtMTM3LjZIMzEyLjZRMzIzLjgwMDAwMDAwMDAwMDA3IC0xMzcuNiAzMzIuODAwMDAwMDAwMDAwMDcgLTEzMy4zUTM0MS44MDAwMDAwMDAwMDAwNyAtMTI5LjAgMzQ3LjEgLTEyMS40UTM1Mi40MDAwMDAwMDAwMDAwMyAtMTEzLjgwMDAwMDAwMDAwMDAxIDM1Mi40MDAwMDAwMDAwMDAwMyAtMTAzLjYwMDAwMDAwMDAwMDAxUTM1Mi40MDAwMDAwMDAwMDAwMyAtOTQuNjAwMDAwMDAwMDAwMDEgMzQ5LjIwMDAwMDAwMDAwMDA1IC04OC4yMDAwMDAwMDAwMDAwMlEzNDYuMCAtODEuODAwMDAwMDAwMDAwMDEgMzQwLjUgLTc3LjgwMDAwMDAwMDAwMDAxUTMzNS4wIC03My44IDMyOC40MDAwMDAwMDAwMDAwMyAtNzEuOFYtNzEuMFEzMzYuMjAwMDAwMDAwMDAwMDUgLTY5LjQgMzQyLjQwMDAwMDAwMDAwMDAzIC02NS4zMDAwMDAwMDAwMDAwMVEzNDguNiAtNjEuMiAzNTIuMjAwMDAwMDAwMDAwMDUgLTU0LjJRMzU1LjgwMDAwMDAwMDAwMDA3IC00Ny4yIDM1NS44MDAwMDAwMDAwMDAwNyAtMzcuMlEzNTUuODAwMDAwMDAwMDAwMDcgLTI1LjQwMDAwMDAwMDAwMDAwMiAzNTAuMSAtMTcuMVEzNDQuNDAwMDAwMDAwMDAwMDMgLTguOCAzMzQuODAwMDAwMDAwMDAwMDcgLTQuNFEzMjUuMjAwMDAwMDAwMDAwMDUgMC4wIDMxMy4yMDAwMDAwMDAwMDAwNSAwLjBaTTI0MC4yMDAwMDAwMDAwMDAwMiAtMjkuMEgyOTkuNlEzMDYuMCAtMjkuMCAzMTAuMCAtMzIuNVEzMTQuMCAtMzYuMCAzMTQuMCAtNDMuMlEzMTQuMCAtNDcuMCAzMTIuMyAtNTAuMFEzMTAuNiAtNTMuMCAzMDcuMjAwMDAwMDAwMDAwMDUgLTU0LjdRMzAzLjggLTU2LjQwMDAwMDAwMDAwMDAwNiAyOTkuMCAtNTYuNDAwMDAwMDAwMDAwMDA2SDI0MC4yMDAwMDAwMDAwMDAwMlpNMjQwLjIwMDAwMDAwMDAwMDAyIC04My4ySDI5Ni4yMDAwMDAwMDAwMDAwNVEzMDAuOCAtODMuMiAzMDQuMCAtODQuOVEzMDcuMjAwMDAwMDAwMDAwMDUgLTg2LjYwMDAwMDAwMDAwMDAxIDMwOS4wMDAwMDAwMDAwMDAwNiAtODkuNjAwMDAwMDAwMDAwMDFRMzEwLjgwMDAwMDAwMDAwMDA3IC05Mi42MDAwMDAwMDAwMDAwMSAzMTAuODAwMDAwMDAwMDAwMDcgLTk2LjgwMDAwMDAwMDAwMDAxUTMxMC44MDAwMDAwMDAwMDAwNyAtMTAyLjYwMDAwMDAwMDAwMDAxIDMwNi44MDAwMDAwMDAwMDAwNyAtMTA2LjEwMDAwMDAwMDAwMDAxUTMwMi44IC0xMDkuNjAwMDAwMDAwMDAwMDEgMjk2LjggLTEwOS42MDAwMDAwMDAwMDAwMUgyNDAuMjAwMDAwMDAwMDAwMDJaIE0zNzguNDAwMDAwMDAwMDAwMDMgMC4wVi0xMzcuNkg0OTEuNDAwMDAwMDAwMDAwMDNRNTAyLjYgLTEzNy42IDUxMS42IC0xMzMuM1E1MjAuNiAtMTI5LjAgNTI1LjkwMDAwMDAwMDAwMDEgLTEyMS40UTUzMS4yIC0xMTMuODAwMDAwMDAwMDAwMDEgNTMxLjIgLTEwMy42MDAwMDAwMDAwMDAwMVE1MzEuMiAtOTQuNjAwMDAwMDAwMDAwMDEgNTI4LjAgLTg4LjIwMDAwMDAwMDAwMDAyUTUyNC44MDAwMDAwMDAwMDAxIC04MS44MDAwMDAwMDAwMDAwMSA1MTkuMzAwMDAwMDAwMDAwMSAtNzcuODAwMDAwMDAwMDAwMDFRNTEzLjgwMDAwMDAwMDAwMDEgLTczLjggNTA3LjIwMDAwMDAwMDAwMDA1IC03MS44Vi03MS4wUTUxNS4wIC02OS40IDUyMS4yIC02NS4zMDAwMDAwMDAwMDAwMVE1MjcuNDAwMDAwMDAwMDAwMSAtNjEuMiA1MzEuMCAtNTQuMlE1MzQuNiAtNDcuMiA1MzQuNiAtMzcuMlE1MzQuNiAtMjUuNDAwMDAwMDAwMDAwMDAyIDUyOC45MDAwMDAwMDAwMDAxIC0xNy4xUTUyMy4yIC04LjggNTEzLjYgLTQuNFE1MDQuMCAwLjAgNDkyLjAgMC4wWk00MTkuMDAwMDAwMDAwMDAwMDYgLTI5LjBINDc4LjQwMDAwMDAwMDAwMDAzUTQ4NC44MDAwMDAwMDAwMDAwNyAtMjkuMCA0ODguODAwMDAwMDAwMDAwMDcgLTMyLjVRNDkyLjgwMDAwMDAwMDAwMDA3IC0zNi4wIDQ5Mi44MDAwMDAwMDAwMDAwNyAtNDMuMlE0OTIuODAwMDAwMDAwMDAwMDcgLTQ3LjAgNDkxLjEgLTUwLjBRNDg5LjQwMDAwMDAwMDAwMDAzIC01My4wIDQ4Ni4wIC01NC43UTQ4Mi42IC01Ni40MDAwMDAwMDAwMDAwMDYgNDc3LjgwMDAwMDAwMDAwMDA3IC01Ni40MDAwMDAwMDAwMDAwMDZINDE5LjAwMDAwMDAwMDAwMDA2Wk00MTkuMDAwMDAwMDAwMDAwMDYgLTgzLjJINDc1LjAwMDAwMDAwMDAwMDA2UTQ3OS42IC04My4yIDQ4Mi44MDAwMDAwMDAwMDAwNyAtODQuOVE0ODYuMDAwMDAwMDAwMDAwMDYgLTg2LjYwMDAwMDAwMDAwMDAxIDQ4Ny44MDAwMDAwMDAwMDAwNyAtODkuNjAwMDAwMDAwMDAwMDFRNDg5LjYgLTkyLjYwMDAwMDAwMDAwMDAxIDQ4OS42IC05Ni44MDAwMDAwMDAwMDAwMVE0ODkuNiAtMTAyLjYwMDAwMDAwMDAwMDAxIDQ4NS42IC0xMDYuMTAwMDAwMDAwMDAwMDFRNDgxLjYgLTEwOS42MDAwMDAwMDAwMDAwMSA0NzUuNiAtMTA5LjYwMDAwMDAwMDAwMDAxSDQxOS4wMDAwMDAwMDAwMDAwNloiLz4KICA8cGF0aCBmaWxsPSIjRjI2NTIyIiBkPSJNNTUzLjQwMDAwMDAwMDAwMDEgMC4wVi0zNi42SDU5Ny4wVjAuMFoiLz4KICA8bGluZSB4MT0iNjMyIiB5MT0iOCIgeDI9IjYzMiIgeTI9Ii0xNDUuNiIgc3Ryb2tlPSIjQzlDNEJBIiBzdHJva2Utd2lkdGg9IjIiIG9wYWNpdHk9IjAuNyIvPgogIDx0ZXh0IHg9IjY2MiIgeT0iMCIgZm9udC1mYW1pbHk9IkFyY2hpdm8sSGVsdmV0aWNhLEFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI0MDAiIGZvbnQtc2l6ZT0iMTIwIiBmaWxsPSIjMjQyMzIxIj5MYWJzPC90ZXh0Pgo8L3N2Zz4K"); }
+.theme-dark .mn-marca-dbb { background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9Ii0yMC4wIC0xNzAgMTAwMC4wIDE5MCIgd2lkdGg9IjIwMDAiIGhlaWdodD0iMzgwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkRCQi4gTGFicyI+CiAgPHRpdGxlPkRCQi4gTGFicyDigJQgd29yZG1hcmsgKyBkaXZpc29yLCBwYXJhIGZvbmRvIGNhcmLDs248L3RpdGxlPgogIDxkZXNjPk9wY2nDs24gQi4gV29yZG1hcmsgREJCLiBzaW4gbW9kaWZpY2FyLCBjb3BpYWRvIGRlc2RlIGZhbWlsaWEtbG9nby8wMi1pbnZlcnNhL2RiYi1pbnZlcnNvLnN2ZyAoY3VydmFzLCBBcmNoaXZvIDgwMCBleHBhbmRlZCwKICB0cmFja2luZyAtMC4wMmVtKS4gIkxhYnMiIGFncmVnYWRvIGVuIEFyY2hpdm8gNDAwLCBzZXBhcmFkbyBwb3IgdW5hIGzDrW5lYSBkZSByZXTDrWN1bGEg4oCUIG5vIGVzIHVuIHPDrW1ib2xvIG51ZXZvLjwvZGVzYz4KICA8cGF0aCBmaWxsPSIjRkFGOEYyIiBkPSJNMTcuMCAwLjBWLTEzNy42SDkzLjgwMDAwMDAwMDAwMDAxUTExOS4yIC0xMzcuNiAxMzcuNiAtMTI5LjZRMTU2LjAgLTEyMS42MDAwMDAwMDAwMDAwMSAxNjUuOCAtMTA2LjIwMDAwMDAwMDAwMDAyUTE3NS42MDAwMDAwMDAwMDAwMiAtOTAuODAwMDAwMDAwMDAwMDEgMTc1LjYwMDAwMDAwMDAwMDAyIC02OC44UTE3NS42MDAwMDAwMDAwMDAwMiAtNDYuNiAxNjUuOCAtMzEuM1ExNTYuMCAtMTYuMCAxMzcuNiAtOC4wUTExOS4yIDAuMCA5My44MDAwMDAwMDAwMDAwMSAwLjBaTTU3LjYgLTMwLjIwMDAwMDAwMDAwMDAwM0g5MS40UTEwMS4wIC0zMC4yMDAwMDAwMDAwMDAwMDMgMTA4LjcgLTMyLjdRMTE2LjQgLTM1LjIgMTIyLjAgLTM5LjgwMDAwMDAwMDAwMDAwNFExMjcuNjAwMDAwMDAwMDAwMDEgLTQ0LjQwMDAwMDAwMDAwMDAwNiAxMzAuNzAwMDAwMDAwMDAwMDIgLTUxLjJRMTMzLjggLTU4LjAgMTMzLjggLTY2LjYwMDAwMDAwMDAwMDAxVi03MS4yUTEzMy44IC03OS44MDAwMDAwMDAwMDAwMSAxMzAuNzAwMDAwMDAwMDAwMDIgLTg2LjVRMTI3LjYwMDAwMDAwMDAwMDAxIC05My4yIDEyMi4wIC05Ny44MDAwMDAwMDAwMDAwMVExMTYuNCAtMTAyLjQgMTA4LjcgLTEwNC45UTEwMS4wIC0xMDcuNCA5MS40IC0xMDcuNEg1Ny42WiBNMTk5LjYwMDAwMDAwMDAwMDAyIDAuMFYtMTM3LjZIMzEyLjZRMzIzLjgwMDAwMDAwMDAwMDA3IC0xMzcuNiAzMzIuODAwMDAwMDAwMDAwMDcgLTEzMy4zUTM0MS44MDAwMDAwMDAwMDAwNyAtMTI5LjAgMzQ3LjEgLTEyMS40UTM1Mi40MDAwMDAwMDAwMDAwMyAtMTEzLjgwMDAwMDAwMDAwMDAxIDM1Mi40MDAwMDAwMDAwMDAwMyAtMTAzLjYwMDAwMDAwMDAwMDAxUTM1Mi40MDAwMDAwMDAwMDAwMyAtOTQuNjAwMDAwMDAwMDAwMDEgMzQ5LjIwMDAwMDAwMDAwMDA1IC04OC4yMDAwMDAwMDAwMDAwMlEzNDYuMCAtODEuODAwMDAwMDAwMDAwMDEgMzQwLjUgLTc3LjgwMDAwMDAwMDAwMDAxUTMzNS4wIC03My44IDMyOC40MDAwMDAwMDAwMDAwMyAtNzEuOFYtNzEuMFEzMzYuMjAwMDAwMDAwMDAwMDUgLTY5LjQgMzQyLjQwMDAwMDAwMDAwMDAzIC02NS4zMDAwMDAwMDAwMDAwMVEzNDguNiAtNjEuMiAzNTIuMjAwMDAwMDAwMDAwMDUgLTU0LjJRMzU1LjgwMDAwMDAwMDAwMDA3IC00Ny4yIDM1NS44MDAwMDAwMDAwMDAwNyAtMzcuMlEzNTUuODAwMDAwMDAwMDAwMDcgLTI1LjQwMDAwMDAwMDAwMDAwMiAzNTAuMSAtMTcuMVEzNDQuNDAwMDAwMDAwMDAwMDMgLTguOCAzMzQuODAwMDAwMDAwMDAwMDcgLTQuNFEzMjUuMjAwMDAwMDAwMDAwMDUgMC4wIDMxMy4yMDAwMDAwMDAwMDAwNSAwLjBaTTI0MC4yMDAwMDAwMDAwMDAwMiAtMjkuMEgyOTkuNlEzMDYuMCAtMjkuMCAzMTAuMCAtMzIuNVEzMTQuMCAtMzYuMCAzMTQuMCAtNDMuMlEzMTQuMCAtNDcuMCAzMTIuMyAtNTAuMFEzMTAuNiAtNTMuMCAzMDcuMjAwMDAwMDAwMDAwMDUgLTU0LjdRMzAzLjggLTU2LjQwMDAwMDAwMDAwMDAwNiAyOTkuMCAtNTYuNDAwMDAwMDAwMDAwMDA2SDI0MC4yMDAwMDAwMDAwMDAwMlpNMjQwLjIwMDAwMDAwMDAwMDAyIC04My4ySDI5Ni4yMDAwMDAwMDAwMDAwNVEzMDAuOCAtODMuMiAzMDQuMCAtODQuOVEzMDcuMjAwMDAwMDAwMDAwMDUgLTg2LjYwMDAwMDAwMDAwMDAxIDMwOS4wMDAwMDAwMDAwMDAwNiAtODkuNjAwMDAwMDAwMDAwMDFRMzEwLjgwMDAwMDAwMDAwMDA3IC05Mi42MDAwMDAwMDAwMDAwMSAzMTAuODAwMDAwMDAwMDAwMDcgLTk2LjgwMDAwMDAwMDAwMDAxUTMxMC44MDAwMDAwMDAwMDAwNyAtMTAyLjYwMDAwMDAwMDAwMDAxIDMwNi44MDAwMDAwMDAwMDAwNyAtMTA2LjEwMDAwMDAwMDAwMDAxUTMwMi44IC0xMDkuNjAwMDAwMDAwMDAwMDEgMjk2LjggLTEwOS42MDAwMDAwMDAwMDAwMUgyNDAuMjAwMDAwMDAwMDAwMDJaIE0zNzguNDAwMDAwMDAwMDAwMDMgMC4wVi0xMzcuNkg0OTEuNDAwMDAwMDAwMDAwMDNRNTAyLjYgLTEzNy42IDUxMS42IC0xMzMuM1E1MjAuNiAtMTI5LjAgNTI1LjkwMDAwMDAwMDAwMDEgLTEyMS40UTUzMS4yIC0xMTMuODAwMDAwMDAwMDAwMDEgNTMxLjIgLTEwMy42MDAwMDAwMDAwMDAwMVE1MzEuMiAtOTQuNjAwMDAwMDAwMDAwMDEgNTI4LjAgLTg4LjIwMDAwMDAwMDAwMDAyUTUyNC44MDAwMDAwMDAwMDAxIC04MS44MDAwMDAwMDAwMDAwMSA1MTkuMzAwMDAwMDAwMDAwMSAtNzcuODAwMDAwMDAwMDAwMDFRNTEzLjgwMDAwMDAwMDAwMDEgLTczLjggNTA3LjIwMDAwMDAwMDAwMDA1IC03MS44Vi03MS4wUTUxNS4wIC02OS40IDUyMS4yIC02NS4zMDAwMDAwMDAwMDAwMVE1MjcuNDAwMDAwMDAwMDAwMSAtNjEuMiA1MzEuMCAtNTQuMlE1MzQuNiAtNDcuMiA1MzQuNiAtMzcuMlE1MzQuNiAtMjUuNDAwMDAwMDAwMDAwMDAyIDUyOC45MDAwMDAwMDAwMDAxIC0xNy4xUTUyMy4yIC04LjggNTEzLjYgLTQuNFE1MDQuMCAwLjAgNDkyLjAgMC4wWk00MTkuMDAwMDAwMDAwMDAwMDYgLTI5LjBINDc4LjQwMDAwMDAwMDAwMDAzUTQ4NC44MDAwMDAwMDAwMDAwNyAtMjkuMCA0ODguODAwMDAwMDAwMDAwMDcgLTMyLjVRNDkyLjgwMDAwMDAwMDAwMDA3IC0zNi4wIDQ5Mi44MDAwMDAwMDAwMDAwNyAtNDMuMlE0OTIuODAwMDAwMDAwMDAwMDcgLTQ3LjAgNDkxLjEgLTUwLjBRNDg5LjQwMDAwMDAwMDAwMDAzIC01My4wIDQ4Ni4wIC01NC43UTQ4Mi42IC01Ni40MDAwMDAwMDAwMDAwMDYgNDc3LjgwMDAwMDAwMDAwMDA3IC01Ni40MDAwMDAwMDAwMDAwMDZINDE5LjAwMDAwMDAwMDAwMDA2Wk00MTkuMDAwMDAwMDAwMDAwMDYgLTgzLjJINDc1LjAwMDAwMDAwMDAwMDA2UTQ3OS42IC04My4yIDQ4Mi44MDAwMDAwMDAwMDAwNyAtODQuOVE0ODYuMDAwMDAwMDAwMDAwMDYgLTg2LjYwMDAwMDAwMDAwMDAxIDQ4Ny44MDAwMDAwMDAwMDAwNyAtODkuNjAwMDAwMDAwMDAwMDFRNDg5LjYgLTkyLjYwMDAwMDAwMDAwMDAxIDQ4OS42IC05Ni44MDAwMDAwMDAwMDAwMVE0ODkuNiAtMTAyLjYwMDAwMDAwMDAwMDAxIDQ4NS42IC0xMDYuMTAwMDAwMDAwMDAwMDFRNDgxLjYgLTEwOS42MDAwMDAwMDAwMDAwMSA0NzUuNiAtMTA5LjYwMDAwMDAwMDAwMDAxSDQxOS4wMDAwMDAwMDAwMDAwNloiLz4KICA8cGF0aCBmaWxsPSIjRjI2NTIyIiBkPSJNNTUzLjQwMDAwMDAwMDAwMDEgMC4wVi0zNi42SDU5Ny4wVjAuMFoiLz4KICA8bGluZSB4MT0iNjMyIiB5MT0iOCIgeDI9IjYzMiIgeTI9Ii0xNDUuNiIgc3Ryb2tlPSIjQThBMjk2IiBzdHJva2Utd2lkdGg9IjIiIG9wYWNpdHk9IjAuNSIvPgogIDx0ZXh0IHg9IjY2MiIgeT0iMCIgZm9udC1mYW1pbHk9IkFyY2hpdm8sSGVsdmV0aWNhLEFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI0MDAiIGZvbnQtc2l6ZT0iMTIwIiBmaWxsPSIjRkFGOEYyIj5MYWJzPC90ZXh0Pgo8L3N2Zz4K"); }
+
+/* Estado guardado de una sugerencia: verde tenue y sin botones de rehacer. */
+.mn-ia-caja.guardada { border-color: rgba(52, 209, 122, .45); }
+.mn-ia-guardado { margin-top: 8px; font: 600 12px var(--font-interface); color: #34D17A; }
+
+/* 1.27 — buscador con resultados, y la bandeja de fuentes sin vínculo */
+.mn-raiz .mn-resultados { position: absolute; z-index: 6; top: 100%; left: 0; min-width: min(260px, 100%); max-width: min(420px, 100%); max-height: 50vh; overflow: auto; display: none; background: rgba(10,14,36,.96); border: 1px solid rgba(170,185,255,.22); border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.mn-raiz .mn-resultados.mostrar { display: block; }
+.mn-raiz .mn-resultado.externo { color: rgba(230,234,255,.72); }
+.mn-raiz .mn-resultado { padding: 5px 8px; font: 12px var(--font-monospace); color: #E6EAFF; border-radius: 5px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mn-raiz .mn-resultado:hover { background: rgba(40,48,110,.55); }
+.mn-raiz .mn-resultado .mn-tenue { color: rgba(230,234,255,.62); }
+.mn-raiz .mn-panel .mn-motivo.mn-cita { color: #8BE9FD; cursor: pointer; }
+.mn-raiz .mn-panel .mn-motivo.mn-cita:hover { text-decoration: underline; }
+
+/* 1.27.1 — el resumen recién aprobado se destaca un instante */
+.mn-raiz .mn-panel .mn-resumen2.mn-recien { border-left: 3px solid #34D17A; padding-left: 8px; animation: mn-recien 2.4s ease-out forwards; }
+.mn-raiz .mn-panel .mn-capa.mn-recien { color: #34D17A; }
+@keyframes mn-recien { from { background: rgba(52,209,122,.18); } to { background: transparent; } }
+
+/* 1.32 — Novedades: el material nuevo, en el panel del mapa. Una línea por novedad, agrupadas por
+   la página a la que van; lo que choca y lo que falló, arriba y en color. */
+.mn-raiz button.mn-chip.mn-chip-nov { border-color: rgba(52,209,122,.6); color: #7CF0B0; }
+.mn-raiz .mn-panel .mn-nov .mn-resumen { margin-bottom: 6px; }
+.mn-raiz .mn-panel .mn-nov .mn-acciones { margin: 10px 0; }
+.mn-raiz .mn-panel .mn-nov-barra { height: 6px; margin: 12px 0 8px; border-radius: 3px; overflow: hidden; background: rgba(170,185,255,.15); }
+.mn-raiz .mn-panel .mn-nov-barra > div { height: 100%; width: var(--mn-avance, 0%); background: #34D17A; transition: width .3s ease; }
+.mn-raiz .mn-panel .mn-nov-aviso { margin: 8px 0; padding: 8px 10px; border-radius: 8px; border-left: 3px solid; }
+.mn-raiz .mn-panel .mn-nov-choca { border-color: #F5CF45; background: rgba(245,207,69,.07); }
+.mn-raiz .mn-panel .mn-nov-error { border-color: #FF6B6B; background: rgba(255,107,107,.07); }
+.mn-raiz .mn-panel .mn-nov-titulo { font: 600 12px var(--font-interface); margin-bottom: 4px; }
+.mn-raiz .mn-panel .mn-nov-grupo { margin: 10px 0; padding: 8px 10px; border: 1px solid rgba(170,185,255,.16); border-radius: 10px; background: rgba(20,26,64,.45); }
+.mn-raiz .mn-panel .mn-nov-cab { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; }
+.mn-raiz .mn-panel .mn-nov-cab.mn-nov-enlace { cursor: pointer; }
+.mn-raiz .mn-panel .mn-nov-cab.mn-nov-enlace:hover .mn-nov-pagina { text-decoration: underline; }
+.mn-raiz .mn-panel .mn-nov-pagina { font: 600 13px var(--font-interface); color: #E6EAFF; }
+.mn-raiz .mn-panel .mn-nov-meta { font: 11px var(--font-monospace); color: #8A93B8; }
+.mn-raiz .mn-panel .mn-nov-cab .mn-nov-meta { margin-left: auto; }
+.mn-raiz .mn-panel .mn-nov-fila { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-top: 1px solid rgba(170,185,255,.1); }
+.mn-raiz .mn-panel .mn-nov-cuerpo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mn-raiz .mn-panel .mn-nov-texto { font: 13px/1.45 var(--font-interface); color: #E6EAFF; }
+.mn-raiz .mn-panel .mn-nov-sin-cita { color: #F5CF45; }
+.mn-raiz .mn-panel .mn-nov-botones { display: flex; gap: 6px; flex-shrink: 0; }
+.mn-raiz .mn-panel .mn-nov-botones button.mn-btn { width: 30px; padding: 0; justify-content: center; }
+.mn-raiz .mn-panel .mn-nov-botones button:disabled { opacity: .3; cursor: not-allowed; }
+.mn-raiz .mn-panel .mn-nov-fila.hecha .mn-nov-texto { color: #7CF0B0; }
+.mn-raiz .mn-panel .mn-nov-fila.hecha .mn-nov-texto::before { content: '✓ '; }
+.mn-raiz .mn-panel .mn-nov-fila.descartada { opacity: .4; }
+.mn-raiz .mn-panel .mn-nov-plegable { margin: 10px 0; }
+.mn-raiz .mn-panel .mn-nov-plegable summary { cursor: pointer; font: 12px var(--font-interface); color: #AEB6DA; padding: 5px 0; }
+/* 1.32 — Conexiones que faltan: «revisar primero» en la barra y temas clave en el panel. */
+.mn-raiz button.mn-chip.mn-chip-revisar { border-color: rgba(255,107,157,.55); color: #FF9CC0; }
+.mn-raiz .mn-panel .mn-temas-clave { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+.mn-raiz .mn-panel button.mn-ficha.clave { border-color: #F5CF45; color: #F5CF45; }
+.mn-raiz .mn-panel .mn-vacio { cursor: pointer; }
+.mn-raiz .mn-panel .mn-vacio .mn-acciones { margin-top: 6px; }
+.mn-raiz .mn-panel .mn-vacio .mn-vacio-t { display: block; line-height: 1.5; }
+.mn-raiz .mn-panel .mn-vacio .mn-vacio-t .mn-punto { margin-right: 4px; vertical-align: 1px; }
+
+/* Obsidian 1.13+: el bloque de IA se dibuja dentro de UNA fila de ajustes, que es flex en fila.
+   Sin esto, cada ajuste (proveedor, llave, modelo…) quedaba como una columna angosta. */
+.setting-item.mn-ajuste-ia { display: block; padding: 0; border-top: none; }
+.mn-ajuste-ia > .setting-item,
+.mn-ajuste-ia > .setting-item-description { width: 100%; }
+.mn-ajuste-ia > .setting-item-description { margin: 0 0 var(--size-4-2); }
+/* La fila contenedora ya trae su margen: las filas de adentro no suman otro, así todo queda alineado. */
+.setting-item.mn-ajuste-ia > .setting-item { padding-inline: 0; }
+
+/* Asistente: «Qué significa cada capa», plegado y con la letra de las descripciones. */
+.mn-asistente-leyenda { padding: var(--size-4-2) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.mn-asistente-leyenda > summary { font-size: var(--font-ui-small); color: var(--text-muted); cursor: pointer; }
+.mn-asistente-leyenda > .setting-item-description { margin-top: var(--size-4-1); }
+
+/* Temas clave: el punto y el nombre separados (el botón es flex y se comía el espacio). */
+.mn-raiz .mn-panel .mn-temas-clave button.mn-ficha { display: inline-flex; align-items: center; gap: 6px; }
+/* «Dejar aquí» es texto, no un ícono: el botón toma el ancho de su texto. */
+.mn-raiz .mn-panel .mn-nov-recortes .mn-nov-botones button.mn-btn { width: auto; padding: 0 10px; }
+
+/* 1.33 — auditoría UI/UX. Contraste: «en el texto:» y los textos tenues pasan de 3,2–4,0 a más de 4,5.
+   Teclado: lo clicable que no es botón recibe foco (src/main.js) y aquí se ve dónde está. */
+.mn-raiz [role="button"]:focus-visible, .mn-raiz .mn-resultado:focus-visible { outline: 2px solid #B79CFF; outline-offset: 1px; border-radius: 6px; }
+.mn-raiz .mn-resultado:focus { background: rgba(40,48,110,.55); }
+/* Objetivos: 24 px mínimo en el computador (WCAG 2.5.8); en el teléfono 40 px, y 44 los de zoom. */
+.mn-raiz .mn-panel button.mn-ficha { min-height: 24px; }
+.is-phone .mn-raiz button.mn-chip, .mn-raiz.angosto button.mn-chip, .is-phone .mn-raiz input.mn-buscar, .mn-raiz.angosto input.mn-buscar { min-height: 40px; }
+.is-phone .mn-raiz .mn-panel button.mn-btn, .mn-raiz.angosto .mn-panel button.mn-btn { height: 40px; min-width: 40px; }
+.is-phone .mn-raiz .mn-panel button.mn-ficha, .mn-raiz.angosto .mn-panel button.mn-ficha { min-height: 36px; }
+.is-phone .mn-raiz .mn-zoom button, .mn-raiz.angosto .mn-zoom button { width: 44px; height: 44px; }
+.is-phone .mn-raiz .mn-resultado, .mn-raiz.angosto .mn-resultado { padding: 11px 10px; }
+.is-phone .mn-raiz .mn-panel summary, .mn-raiz.angosto .mn-panel summary { padding: 10px 0; }
+/* Chips con más a los lados: el borde se desvanece donde sigue la fila. */
+.mn-chips.desborda-der { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.mn-chips.desborda-izq { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.mn-chips.desborda-izq.desborda-der { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+/* En pantalla angosta el mapa se corre para mostrar la nota tocada y pasa por detrás de la barra:
+   sin fondo, los rótulos y los chips se mezclaban. */
+.is-phone .mn-raiz .mn-barra, .mn-raiz.angosto .mn-barra { background: rgba(6,10,24,.88); border-radius: 12px; padding: 6px; margin: -6px; box-shadow: 0 8px 20px rgba(6,10,24,.85); }
+
+/* [1.35] Línea de tiempo: tarjetas por tema, con aire */
+.mn-raiz .mn-panel .mn-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding-bottom: 14px; }
+.mn-raiz .mn-panel .mn-tarjeta { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid rgba(170,185,255,.22); border-radius: 10px; background: rgba(170,185,255,.06); cursor: pointer; min-width: 0; }
+.mn-raiz .mn-panel .mn-tarjeta:hover { border-color: rgba(170,185,255,.5); }
+.mn-raiz .mn-panel .mn-tarjeta .mn-motivo { overflow-wrap: anywhere; }
+.mn-raiz .mn-panel .mn-nov-fila.mn-clic { cursor: pointer; }
+
+.mn-ia-porque { margin: 6px 0; font-size: 0.95em; line-height: 1.4; color: var(--text-muted); }
+.mn-ia-manual { width: 100%; margin: 6px 0; }
+
+.mn-parecido { width: 100%; max-width: 100%; aspect-ratio: 1; background: var(--background-secondary); border-radius: 6px; }
+.mn-parecido circle { cursor: pointer; opacity: 0.85; }
+.mn-parecido circle:hover { opacity: 1; stroke: var(--text-normal); stroke-width: 0.4; }
