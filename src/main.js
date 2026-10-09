@@ -446,6 +446,15 @@ class VistaMapa extends ItemView {
   getDisplayText() { return NOMBRE; }
   getIcon() { return 'brain-circuit'; }
 
+  // Superficie que el harness e2e (mundo.cjs) lee de la vista: alias sobre el estado real del fork.
+  get D() { return this.datos; }
+  get N() { return this.renderer?.scene?.nodes || this.datos.nodos || []; }
+  // Cámara efectiva (la que usa el renderer para dibujar y el hitTest): así el harness calcula
+  // exactamente el punto donde se pinta cada nodo.
+  get vista() { return this.renderer?.camera ? this.renderer.camera() : this.estado.camara; }
+  get porId() { const m = {}; for (const n of (this.renderer?.scene?.nodes || this.datos.nodos || [])) m[n.id] = n; return m; }
+  get ady() { const m = {}; for (const n of (this.renderer?.scene?.nodes || this.datos.nodos || [])) m[n.id] = []; for (const e of this.datos.aristas || []) { const a = Array.isArray(e) ? e[0] : e.a, b = Array.isArray(e) ? e[1] : e.b; if (m[a] && m[b]) { m[a].push(b); m[b].push(a); } } return m; }
+
   getState() { return normalizarEstado(this.estado, { datos: this.datos }); }
 
   aplicarAjustesVisual() {

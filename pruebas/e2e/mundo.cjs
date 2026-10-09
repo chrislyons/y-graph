@@ -31,7 +31,13 @@ class Nodo {
   createEl(tag, o) { return this._nuevo(tag, o); }
   createDiv(o) { return this._nuevo('div', o); }
   createSpan(o) { return this._nuevo('span', o); }
+  // DOM real: appendChild mueve un nodo existente bajo este padre (lo saca de donde estaba).
+  appendChild(child) { if (!child) return child; if (child.padre) child.padre.hijos = child.padre.hijos.filter((x) => x !== child); child.padre = this; this.hijos.push(child); return child; }
+  append(...nodos) { for (const n of nodos) this.appendChild(n); return this; }
   setText(t) { this.hijos = []; this.texto = String(t); return this; }
+  // textContent del DOM real: escribirlo reemplaza el texto del nodo (y sus hijos).
+  get textContent() { return this.texto; }
+  set textContent(v) { this.hijos = []; this.texto = String(v); }
   appendText(t) { const n = this._nuevo('#text'); n.texto = String(t); return this; }
   empty() { this.hijos = []; this.texto = ''; return this; }
   addClass(...c) { c.flatMap((x) => String(x).split(/\s+/)).filter(Boolean).forEach((x) => this.clases.add(x)); return this; }
@@ -39,7 +45,8 @@ class Nodo {
   toggleClass(c, v) { (v === undefined ? !this.clases.has(c) : v) ? this.clases.add(c) : this.clases.delete(c); return this; }
   hasClass(c) { return this.clases.has(c); }
   get className() { return [...this.clases].join(' '); }
-  get classList() { const n = this; return { contains: (c) => n.clases.has(c), add: (c) => n.clases.add(c), remove: (c) => n.clases.delete(c) }; }
+  set className(v) { this.clases = new Set(String(v).split(/\s+/).filter(Boolean)); }
+  get classList() { const n = this; return { contains: (c) => n.clases.has(c), add: (...c) => c.forEach((x) => n.clases.add(x)), remove: (...c) => c.forEach((x) => n.clases.delete(x)), toggle: (c, v) => { const on = v === undefined ? !n.clases.has(c) : !!v; if (on) n.clases.add(c); else n.clases.delete(c); return on; }, replace: (a, b) => { n.clases.delete(a); n.clases.add(b); } }; }
   // show/hide copiados de enhance.js de Obsidian: show() nunca escribe «block».
   show() { if (this.style.display === 'none') this.style.display = ''; return this; }
   hide() { this.style.display = 'none'; return this; }
@@ -47,8 +54,18 @@ class Nodo {
   isShown() { return this.mundo.visible(this); }
   setCssProps() { return this; }
   remove() { if (this.padre) this.padre.hijos = this.padre.hijos.filter((x) => x !== this); this.padre = null; }
+  // Navegación y mutación del DOM real que el código de la vista usa.
+  get children() { return this.hijos; }
+  get childNodes() { return this.hijos; }
+  get firstChild() { return this.hijos[0] || null; }
+  get lastChild() { return this.hijos[this.hijos.length - 1] || null; }
+  get parentNode() { return this.padre; }
+  set parentNode(v) { this.padre = v; }
+  get ownerDocument() { return (typeof global !== 'undefined' && global.document) || null; }
+  removeChild(child) { this.hijos = this.hijos.filter((x) => x !== child); if (child) child.padre = null; return child; }
+  insertBefore(nuevo, ref) { if (!nuevo) return nuevo; if (nuevo.padre) nuevo.padre.hijos = nuevo.padre.hijos.filter((x) => x !== nuevo); nuevo.padre = this; const i = ref ? this.hijos.indexOf(ref) : -1; if (i >= 0) this.hijos.splice(i, 0, nuevo); else this.hijos.push(nuevo); return nuevo; }
   get isConnected() { let n = this; while (n.padre) n = n.padre; return n === this.mundo.raizDom; }
-  getBoundingClientRect() { return this._rect || { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }; }
+  getBoundingClientRect() { if (this._rect) return this._rect; if (this.padre && this.padre !== this.mundo.raizDom) { const r = this.padre.getBoundingClientRect(); if (r && (r.width || r.height)) return r; } return { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   getAttribute(k) { return this.attrs[k] ?? null; }
   hasAttribute(k) { return k in this.attrs; }
