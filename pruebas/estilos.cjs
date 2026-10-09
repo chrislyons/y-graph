@@ -51,6 +51,10 @@ p.igual('ordenAlfabetico false deja el default (auto)',
 p.igual('un ordenCapas explícito no lo toca la clave legada en false',
   normalizarAjustes({ ordenAlfabetico: false, ordenCapas: 'reciente' }).ordenCapas, 'reciente');
 
+// Slice C: el techo del tope por capa sube de 600 a 2000; los configs archivados usan 1000.
+p.igual('el maxPorCapa archivado (1000) sobrevive a la normalización', migrado.maxPorCapa, 1000);
+p.igual('un valor sobre el techo se recorta a 2000', normalizarAjustes({ maxPorCapa: 5000 }).maxPorCapa, 2000);
+
 const plugin = {
   ajustes: { ...AJUSTES_BASE, maxPorCapa: 150 },
   manifest: { version: '1.31.0' },
@@ -75,6 +79,10 @@ p.igual('las definiciones incluyen dropdown, slider y toggles de Step 9', {
   ordenCapas: 'dropdown', profundidadRadial: 'slider', temaVisual: 'dropdown',
   mostrarLeyenda: 'toggle', mostrarAyuda: 'toggle',
 });
+// Slice C: el slider del techo por capa — piso 10 en la normalización, 30–2000 en el control.
+p.igual('el slider de notas por capa cubre 30–2000 con paso 10',
+  [porClave.get('maxPorCapa')?.type, porClave.get('maxPorCapa')?.min, porClave.get('maxPorCapa')?.max, porClave.get('maxPorCapa')?.step],
+  ['slider', 30, 2000, 10]);
 
 tab.display();
 for (const nombre of ['Orden de las capas', 'Profundidad radial', 'Tema visual', 'Mostrar leyenda', 'Mostrar ayuda al abrir']) {

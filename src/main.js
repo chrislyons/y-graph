@@ -217,10 +217,10 @@ function normalizarAjustes(guardado) {
   ajustes.temaVisual = ajustes.temaVisual === 'noche' ? 'noche' : AJUSTES_BASE.temaVisual;
   ajustes.mostrarLeyenda = typeof ajustes.mostrarLeyenda === 'boolean' ? ajustes.mostrarLeyenda : AJUSTES_BASE.mostrarLeyenda;
   ajustes.mostrarAyuda = typeof ajustes.mostrarAyuda === 'boolean' ? ajustes.mostrarAyuda : AJUSTES_BASE.mostrarAyuda;
-  // El slider de «Notas visibles por capa» enseña 30–600 con paso 10; acá solo se descarta lo por
+  // El slider de «Notas visibles por capa» enseña 30–2000 con paso 10; acá solo se descarta lo por
   // debajo del mínimo que capa() aplica de todos modos (10), sin redondear: quien fija un valor
-  // a mano (o una prueba con 12) lo conserva.
-  ajustes.maxPorCapa = ENTERO_AJUSTE(ajustes.maxPorCapa, AJUSTES_BASE.maxPorCapa, 10, 600, 1);
+  // a mano (o una prueba con 12) lo conserva. El techo 2000 cubre los configs archivados (1000).
+  ajustes.maxPorCapa = ENTERO_AJUSTE(ajustes.maxPorCapa, AJUSTES_BASE.maxPorCapa, 10, 2000, 1);
   // El tope diario lo valida el control del slider (5–100, paso 5); acá solo se limita el rango,
   // para no inflar a mano un tope chico (las pruebas usan 3) ni tragarse uno absurdo.
   ajustes.topeDiario = ENTERO_AJUSTE(ajustes.topeDiario, AJUSTES_BASE.topeDiario, 1, 100, 1);
@@ -1724,7 +1724,7 @@ class AjustesMapa extends PluginSettingTab {
       .addText((t) => t.setValue(p.ajustes.propiedadTema).onChange(async (v) => { p.ajustes.propiedadTema = v.trim(); await p.guardar(); }));
     area('Temas', 'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.', 'temas', 7);
     new Setting(c).setName(T('Notas visibles por capa')).setDesc(T('En vaults grandes, cada capa muestra sus notas más conectadas; las demás aparecen al buscarlas.'))
-      .addSlider((sl) => sl.setLimits(30, 600, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
+      .addSlider((sl) => sl.setLimits(30, 2000, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
     new Setting(c).setName(T('Orden de las capas')).setDesc(T('Elige el orden de las notas dentro de cada capa.'))
       .addDropdown((d) => d.addOptions({ auto: T('Automático'), alfabetico: T('Alfabético'), reciente: T('Más recientes') }).setValue(p.ajustes.ordenCapas)
         .onChange(async (v) => { p.ajustes = normalizarAjustes({ ...p.ajustes, ordenCapas: v }); await p.guardar(); }));
@@ -1911,7 +1911,7 @@ class AjustesMapa extends PluginSettingTab {
         texto('Propiedad de tema', 'Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.', 'propiedadTema'),
         area('Temas', 'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.', 'temas', 7),
         { name: T('Notas visibles por capa'), desc: T('En vaults grandes, cada capa muestra sus notas más conectadas; las demás aparecen al buscarlas.'),
-          control: { type: 'slider', key: 'maxPorCapa', min: 30, max: 600, step: 10, defaultValue: 150 } },
+          control: { type: 'slider', key: 'maxPorCapa', min: 30, max: 2000, step: 10, defaultValue: 150 } },
         { name: T('Orden de las capas'), desc: T('Elige el orden de las notas dentro de cada capa.'),
           control: { type: 'dropdown', key: 'ordenCapas', options: { auto: T('Automático'), alfabetico: T('Alfabético'), reciente: T('Más recientes') }, defaultValue: 'auto' } },
         { name: T('Profundidad radial'), desc: T('Cuántos saltos alrededor de la nota seleccionada muestra la vista radial.'),
