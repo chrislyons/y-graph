@@ -117,6 +117,12 @@ export class InspectorController {
     add(actions, action(this.document, T('Camino'), () => this._call('onPath', id)));
     if (node.tema && (node.agrupados || node.capa === (this.datos.capas?.length || 1) - 1)) add(actions, action(this.document, T('Expandir o colapsar'), () => this._call('onCollapse', node.tema)));
     if (node.resumen && !node.resumenAprobado && !node.fuente && !node.virtual && !node.agrupados) add(actions, action(this.document, T('Resumir con IA'), () => this._call('onSummarize', id)));
+    if (node.resumen && !node.fuente && !node.virtual && !node.agrupados) {
+      const rs = add(this.content, el(this.document, 'div'));
+      rs.className = 'mn-resumen2' + (node.resumenAprobado ? '' : ' mn-extraido');
+      rs.textContent = node.resumen;
+      if (node.resumenAprobado) { const lbl = add(this.content, el(this.document, 'div')); lbl.className = 'mn-capa'; lbl.textContent = T('Resumen aprobado (propiedad resumen).'); }
+    }
     const reasons = add(this.content, el(this.document, 'section')); const heading = add(reasons, el(this.document, 'h3')); heading.textContent = T('Motivos y frases');
     const list = add(reasons, el(this.document, 'ul'));
     const byId = new Map(nodesOf(this.datos).map((node) => [text(node.id), node]));

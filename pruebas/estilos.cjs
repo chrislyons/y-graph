@@ -36,7 +36,7 @@ p.igual('los ajustes persistidos se normalizan a rangos y enums canónicos', {
   maxPorCapa: normalizados.maxPorCapa,
 }, {
   ordenCapas: 'auto', profundidadRadial: 4, temaVisual: 'tema', mostrarLeyenda: true,
-  mostrarAyuda: false, maxPorCapa: 30,
+  mostrarAyuda: false, maxPorCapa: 10,
 });
 p.cierto('la migración sigue ignorando el typo vistasGuardados', !Object.hasOwn(normalizados, 'vistasGuardados'));
 

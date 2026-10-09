@@ -514,6 +514,21 @@ const EN = {
   '{0} nota(s)': '{0} note(s)',
   'última novedad · {0}': 'latest · {0}',
   'Todavía no hay notas con fecha.': 'No dated notes yet.',
+
+  // IA: rechazo, cita repetida y resumen aprobado (1.34–1.35)
+  '✓ Segunda revisión: fiel al texto': '✓ Second pass: faithful to the text',
+  '✕ Segunda revisión: ': '✕ Second pass: ',
+  '(voto {0} de {1} fiel)': '({0} of {1} votes: faithful)',
+  'Qué pasó: la IA citó una frase que no aparece tal cual en la nota, así que no se puede confiar en el motivo. Si tú sabes por qué se relacionan, escríbelo; si no, descártalo.': 'What happened: the AI quoted a phrase that does not appear verbatim in the note, so the reason cannot be trusted. If you know why they are related, write it; if not, discard it.',
+  'Qué pasó: la IA propuso un motivo, pero al revisarlo no halló en las dos notas una frase que lo respalde. Pueden estar cerca por tema sin una relación escrita. Si tú sabes por qué se relacionan, escríbelo; si no, descártalo.': 'What happened: the AI proposed a reason, but on review found no phrase in the two notes that backs it. They may be close by topic without a written relation. If you know why they are related, write it; if not, discard it.',
+  '✓ Escrito en la nota y registrado': '✓ Written to the note and logged',
+  'Escribir yo el motivo': 'Write the reason myself',
+  'Una frase: por qué estas dos notas se relacionan': 'One sentence: why these two notes are related',
+  'Guardar en la nota': 'Save to the note',
+  'Descartar': 'Discard',
+  'Reintentar': 'Try again',
+  'La IA copió la misma frase para las dos notas, y solo está en una. Se bloquea para no escribir algo no verificable; si se repite, prueba un modelo más capaz.': 'The AI copied the same sentence for both notes, and it is only in one of them. It is blocked so nothing unverifiable is written; if it keeps happening, try a more capable model.',
+  'Resumen aprobado (propiedad resumen).': 'Approved summary (summary property).',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
 export const enEspanol = () => {

@@ -210,7 +210,10 @@ function normalizarAjustes(guardado) {
   ajustes.temaVisual = ajustes.temaVisual === 'noche' ? 'noche' : AJUSTES_BASE.temaVisual;
   ajustes.mostrarLeyenda = typeof ajustes.mostrarLeyenda === 'boolean' ? ajustes.mostrarLeyenda : AJUSTES_BASE.mostrarLeyenda;
   ajustes.mostrarAyuda = typeof ajustes.mostrarAyuda === 'boolean' ? ajustes.mostrarAyuda : AJUSTES_BASE.mostrarAyuda;
-  ajustes.maxPorCapa = ENTERO_AJUSTE(ajustes.maxPorCapa, AJUSTES_BASE.maxPorCapa, 30, 600, 10);
+  // El slider de «Notas visibles por capa» enseña 30–600 con paso 10; acá solo se descarta lo por
+  // debajo del mínimo que capa() aplica de todos modos (10), sin redondear: quien fija un valor
+  // a mano (o una prueba con 12) lo conserva.
+  ajustes.maxPorCapa = ENTERO_AJUSTE(ajustes.maxPorCapa, AJUSTES_BASE.maxPorCapa, 10, 600, 1);
   // El tope diario lo valida el control del slider (5–100, paso 5); acá solo se limita el rango,
   // para no inflar a mano un tope chico (las pruebas usan 3) ni tragarse uno absurdo.
   ajustes.topeDiario = ENTERO_AJUSTE(ajustes.topeDiario, AJUSTES_BASE.topeDiario, 1, 100, 1);
@@ -1356,6 +1359,13 @@ class VistaMapa extends ItemView {
     } catch (error) { zona.empty(); zona.createDiv({ cls: 'mn-ia-estado mn-falta', text: '✕ ' + (error.message || String(error)) }); }
   }
 
+  // La caja queda en estado guardado: se dice qué pasó y se quitan los botones de repetir.
+  marcarGuardado(caja, acciones, texto) {
+    acciones.empty();
+    caja.addClass('guardada');
+    caja.createDiv({ cls: 'mn-ia-guardado', text: texto });
+  }
+
   async sugerirMotivo(fr) {
     const zona = this.inspectorWorkbench.content.createDiv('mn-ia');
     zona.createDiv({ cls: 'mn-ia-estado', text: T('Leyendo las dos notas…') });
@@ -1366,11 +1376,37 @@ class VistaMapa extends ItemView {
       caja.createDiv({ cls: 'mn-ia-titulo', text: res.aprobable ? T('✦ Motivo propuesto (verificado)') : T('✕ No se puede aprobar') });
       caja.createDiv({ cls: 'mn-ia-motivo', text: res.motivo || '' });
       for (const cita of [res.cita_origen, res.cita_destino]) if (cita) caja.createDiv({ cls: 'mn-ia-cita', text: `${cita.ok ? '✓' : '✕'} ${cita.texto}` });
+      if (res.revision) caja.createDiv({ cls: 'mn-ia-rev', text: (res.revision.fiel ? T('✓ Segunda revisión: fiel al texto') : T('✕ Segunda revisión: ') + res.revision.problema) + (res.revision.votos ? ' ' + T('(voto {0} de {1} fiel)', res.revision.votos.fieles, res.revision.votos.total) : '') });
       if (res.advertencia) caja.createDiv({ cls: 'mn-ia-rev', text: res.advertencia });
-      if (res.aprobable) {
-        const acciones = caja.createDiv('mn-acciones');
-        acciones.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y escribir en la nota') }).onclick = async () => { await this.plugin.aprobar(fr, res); new Notice(T('Motivo escrito en la nota y registrado.')); await this.recargar(); };
+      // Rechazado: decir en simple qué pasó y qué puede hacer la persona.
+      if (!res.aprobable) {
+        const fallaCita = [res.cita_origen, res.cita_destino].some((c) => c && !c.ok);
+        caja.createDiv({ cls: 'mn-ia-porque', text: fallaCita
+          ? T('Qué pasó: la IA citó una frase que no aparece tal cual en la nota, así que no se puede confiar en el motivo. Si tú sabes por qué se relacionan, escríbelo; si no, descártalo.')
+          : T('Qué pasó: la IA propuso un motivo, pero al revisarlo no halló en las dos notas una frase que lo respalde. Pueden estar cerca por tema sin una relación escrita. Si tú sabes por qué se relacionan, escríbelo; si no, descártalo.') });
       }
+      const acciones = caja.createDiv('mn-acciones');
+      if (res.aprobable) {
+        const ok = acciones.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y escribir en la nota') });
+        ok.onclick = async (e) => { e.stopPropagation(); ok.disabled = true; await this.plugin.aprobar(fr, res); new Notice(T('Motivo escrito en la nota y registrado.')); this.marcarGuardado(caja, acciones, T('✓ Escrito en la nota y registrado')); };
+      } else {
+        const yo = acciones.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Escribir yo el motivo') });
+        yo.onclick = (e) => {
+          e.stopPropagation(); yo.disabled = true;
+          const ta = caja.createEl('textarea', { cls: 'mn-ia-manual', attr: { rows: '3', placeholder: T('Una frase: por qué estas dos notas se relacionan') } });
+          const g = caja.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Guardar en la nota') });
+          g.onclick = async (ev) => {
+            ev.stopPropagation(); const motivo = ta.value.trim(); if (!motivo) return;
+            g.disabled = true; await this.plugin.aprobar(fr, { motivo, manual: true });
+            new Notice(T('Motivo escrito en la nota y registrado.')); ta.remove(); g.remove(); this.marcarGuardado(caja, acciones, T('✓ Escrito en la nota y registrado'));
+          };
+          ta.focus();
+        };
+      }
+      const no = acciones.createEl('button', { cls: 'mn-btn', text: T('Descartar') });
+      no.onclick = (e) => { e.stopPropagation(); zona.empty(); };
+      const otra = acciones.createEl('button', { cls: 'mn-btn', text: T('Reintentar') });
+      otra.onclick = (e) => { e.stopPropagation(); this.sugerirMotivo(fr); };
     } catch (error) { zona.empty(); zona.createDiv({ cls: 'mn-ia-estado mn-falta', text: '✕ ' + (error.message || String(error)) }); }
   }
 
@@ -1932,14 +1968,29 @@ export default class MapaNeuronal extends Plugin {
       : `NOTA DE ORIGEN (${nombre(fr.origen)}). El enlace a [[${nombre(fr.destino)}]] está en la línea ${fr.linea}:\n<origen>\n${origen}\n</origen>\n\nNOTA ENLAZADA (${nombre(fr.destino)}):\n<destino>\n${destino}\n</destino>\n\nEscribe el motivo del enlace: una frase de 6 a 18 palabras, concreta, que diga por qué la nota de origen se conecta con la enlazada. ESCRIBE EL MOTIVO EN EL MISMO IDIOMA EN QUE ESTÁN ESCRITAS LAS NOTAS, no en el idioma de estas instrucciones. Da una cita literal de la nota de origen (idealmente la línea ${fr.linea} o parte de ella) y una cita literal de la nota enlazada que respalde el motivo. Son dos citas DISTINTAS: cita_origen sale de <origen> y cita_destino sale de <destino>; no copies la misma frase en las dos.`;
     const esquema = { type: 'object', additionalProperties: false, required: ['suficiente', 'motivo', 'cita_origen', 'cita_destino'],
       properties: { suficiente: { type: 'boolean' }, motivo: { type: 'string' }, cita_origen: { type: 'string' }, cita_destino: { type: 'string' } } };
-    const g = await this.llamarIA(sistema, usuario, esquema);
+    let g = await this.llamarIA(sistema, usuario, esquema);
+    // [1.34] Modelos baratos copian la MISMA frase en las dos citas: una queda bien y la otra no, y
+    // todo motivo se bloquea. Se les dice qué cita falló y dónde debe estar, una sola vez.
+    const malas = (x) => [['cita_origen', 'NOTA A', origen], ['cita_destino', 'NOTA B', destino]]
+      .filter(([k, , t]) => x.suficiente && x[k] && !this.verificarCita(x[k], t));
+    if (malas(g).length) {
+      const aviso = malas(g).map(([k, n]) => `«${g[k]}» (${k}) no está literal en la ${n}.`).join(' ');
+      g = await this.llamarIA(sistema, `${usuario}\n\nTu respuesta anterior no sirve: ${aviso} Copia, carácter por carácter, un fragmento que SÍ esté en esa nota. Si esa nota no tiene nada que respalde el motivo, responde suficiente=false.`, esquema);
+    }
     const res = { motivo: (g.motivo || '').trim(), modelo: this.ajustes.modeloIA,
       cita_origen: g.cita_origen ? { texto: g.cita_origen, ok: this.verificarCita(g.cita_origen, origen) } : null,
       cita_destino: g.cita_destino ? { texto: g.cita_destino, ok: this.verificarCita(g.cita_destino, destino) } : null };
     const palabras = res.motivo.split(/\s+/).filter(Boolean).length;
     if (!g.suficiente || !res.motivo) { res.advertencia = T('La IA no encontró base literal suficiente para afirmar un motivo.'); res.aprobable = false; return res; }
     if (palabras < 4 || palabras > 24) { res.advertencia = T('El motivo tiene {0} palabras; debe ser una frase corta.', palabras); }
-    if (!res.cita_origen?.ok || !res.cita_destino?.ok) { res.aprobable = false; res.advertencia = T('Una cita no aparece literal en la nota: se bloquea para no escribir algo no verificable.'); return res; }
+    if (!res.cita_origen?.ok || !res.cita_destino?.ok) {
+      res.aprobable = false;
+      const mismo = g.cita_origen && normalizarCita(g.cita_origen) === normalizarCita(g.cita_destino);
+      res.advertencia = mismo
+        ? T('La IA copió la misma frase para las dos notas, y solo está en una. Se bloquea para no escribir algo no verificable; si se repite, prueba un modelo más capaz.')
+        : T('Una cita no aparece literal en la nota: se bloquea para no escribir algo no verificable.');
+      return res;
+    }
     if (this.ajustes.dobleVerificacion) {
       const esquema2 = { type: 'object', additionalProperties: false, required: ['fiel', 'problema'], properties: { fiel: { type: 'boolean' }, problema: { type: 'string' } } };
       const sistema2 = 'Eres un revisor escéptico. Decides si un motivo de enlace es FIEL a dos notas. Es infiel si: afirma algo que las notas no dicen; convierte un pendiente, idea o posibilidad en un hecho; ignora una negación; atribuye algo a la nota equivocada; o describe otra relación distinta de la que el texto establece. Si hay cualquier duda, fiel=false.';
@@ -2019,7 +2070,9 @@ export default class MapaNeuronal extends Plugin {
       const prop = this.ajustes.propiedadFecha;
       await this.app.fileManager.processFrontMatter(f, (fm) => { fm[prop] = hoyStr; });
     }
-    const entrada = `\n## ${new Date().toTimeString().slice(0, 5)} · ${fr.origen} → [[${base}]]\n- Motivo aprobado: ${res.motivo}\n- Cita origen (línea ${fr.linea}): «${res.cita_origen?.texto}»\n- Cita destino: «${res.cita_destino?.texto}»\n- Modelo: ${res.modelo} · segunda revisión: ${res.revision ? (res.revision.fiel ? 'fiel' : 'no fiel') : 'desactivada'} · aprobado por la persona\n`;
+    const entrada = res.manual
+      ? `\n## ${new Date().toTimeString().slice(0, 5)} · ${fr.origen} → [[${base}]]\n- Motivo escrito por la persona (sin IA): ${res.motivo}\n`
+      : `\n## ${new Date().toTimeString().slice(0, 5)} · ${fr.origen} → [[${base}]]\n- Motivo aprobado: ${res.motivo}\n- Cita origen (línea ${fr.linea}): «${res.cita_origen?.texto}»\n- Cita destino: «${res.cita_destino?.texto}»\n- Modelo: ${res.modelo} · segunda revisión: ${res.revision ? (res.revision.fiel ? 'fiel' : 'no fiel') : 'desactivada'} · aprobado por la persona\n`;
     await this.registrar(entrada);
     this.refrescarVistas();
   }

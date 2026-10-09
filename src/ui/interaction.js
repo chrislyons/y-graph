@@ -380,7 +380,7 @@ export class InteractionController {
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', 'false');
       option.textContent = value(n.titulo || id);
-      this._listen(option, 'click', () => this._abrirResultado(n));
+      option.onclick = () => this._abrirResultado(n);
       append(this.searchResults, option);
       this.searchOptions.push(id);
     }
