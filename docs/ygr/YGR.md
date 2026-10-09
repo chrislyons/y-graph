@@ -8,6 +8,7 @@ Read [[YGR001 Why Graph History Import]] for upstream provenance and repository 
 
 ## Recent Documents
 
+- [[YGR006 Upstream 1.35.0 Rebase and Dual-Vault Delivery]] - Merge, port waves, gate, delivery
 - [[YGR005 Hover Restoration and Frame-Path Performance]] - Root causes and fixes for the missing hover and the lag
 - [[YGR004 Whitebox research-vault Plugin Review]] - Vault deployment provenance, config audit, cross-repo recommendations
 - [[YGR002 Why Graph Display Engine Modifications for Broadcast Topology]] - Display engine, stroke text, and density scaling
@@ -21,6 +22,7 @@ Read [[YGR001 Why Graph History Import]] for upstream provenance and repository 
 - [[YGR003 Professional Data Visualization Redesign]]
 - [[YGR004 Whitebox research-vault Plugin Review]]
 - [[YGR005 Hover Restoration and Frame-Path Performance]]
+- [[YGR006 Upstream 1.35.0 Rebase and Dual-Vault Delivery]]
 
 ## Navigation
 
