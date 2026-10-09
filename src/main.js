@@ -204,6 +204,12 @@ function normalizarVistasGuardadas(valor, ahora = Date.now()) {
 
 function normalizarAjustes(guardado) {
   const ajustes = Object.assign({}, AJUSTES_BASE, guardado && typeof guardado === 'object' ? guardado : {});
+  // Migración de un solo sentido desde los configs archivados (2110-audio-io, sports-primetime):
+  // antes de ordenCapas el orden era un booleano suelto, ordenAlfabetico. true → 'alfabetico';
+  // false → se deja el default ('auto'). La clave vieja se borra para que un residuo en data.json
+  // no vuelva a forzar el orden cuando la persona cambie el dropdown a mano.
+  if (ajustes.ordenAlfabetico === true) ajustes.ordenCapas = 'alfabetico';
+  delete ajustes.ordenAlfabetico;
   const orden = ['auto', 'alfabetico', 'reciente'].includes(String(ajustes.ordenCapas || '').trim().toLowerCase())
     ? String(ajustes.ordenCapas).trim().toLowerCase() : AJUSTES_BASE.ordenCapas;
   ajustes.ordenCapas = orden;

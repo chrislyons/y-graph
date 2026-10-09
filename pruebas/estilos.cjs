@@ -40,6 +40,17 @@ p.igual('los ajustes persistidos se normalizan a rangos y enums canónicos', {
 });
 p.cierto('la migración sigue ignorando el typo vistasGuardados', !Object.hasOwn(normalizados, 'vistasGuardados'));
 
+// Slice B: los configs archivados (docs/ygr/vault-settings) traen el booleano legado
+// ordenAlfabetico; se pasa el JSON real por el cargador de ajustes.
+const archivo2110 = JSON.parse(fs.readFileSync(path.join(__dirname, '../docs/ygr/vault-settings/2110-audio-io.data.json'), 'utf8'));
+const migrado = normalizarAjustes(archivo2110);
+p.igual('ordenAlfabetico true migra a ordenCapas alfabetico y la clave vieja se borra',
+  [migrado.ordenCapas, Object.hasOwn(migrado, 'ordenAlfabetico')], ['alfabetico', false]);
+p.igual('ordenAlfabetico false deja el default (auto)',
+  normalizarAjustes(JSON.parse(fs.readFileSync(path.join(__dirname, '../docs/ygr/vault-settings/sports-primetime.data.json'), 'utf8'))).ordenCapas, 'auto');
+p.igual('un ordenCapas explícito no lo toca la clave legada en false',
+  normalizarAjustes({ ordenAlfabetico: false, ordenCapas: 'reciente' }).ordenCapas, 'reciente');
+
 const plugin = {
   ajustes: { ...AJUSTES_BASE, maxPorCapa: 150 },
   manifest: { version: '1.31.0' },
