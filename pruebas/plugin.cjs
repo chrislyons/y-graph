@@ -86,6 +86,26 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   p.cierto('el layout radial arma anillos', layoutRadial(D, 'personas/ana-soto.md', { width: 1400, height: 900 }, { profundidad: 2 }).rings.length >= 2);
   p.cierto('calcular vacíos no falla', Array.isArray(vacios(D)));
 
+  // 1.32 — «Conexiones que faltan» como lista de trabajo: orden por impacto, temas clave y descartes.
+  {
+    const original = v.vaciosDelMapa;
+    v.vaciosDelMapa = () => [
+      { ti: 'a', tj: 'b', real: 0, esperado: 4, todos: [{ a: 'x', b: 'y', comunes: 1 }, { a: 'z', b: 'w', comunes: 2 }] },
+      { ti: 'c', tj: 'd', real: 0, esperado: 4, todos: [{ a: 'p', b: 'q', comunes: 1 }] },
+    ];
+    v.plugin.ajustes = Object.assign({}, AJUSTES, { temasClave: [], vaciosDescartados: [] });
+    v.pendientesCache = null;   // el cálculo se reemplazó a mano: lo guardado ya no vale
+    p.igual('se ordena por vecinos en común, no por tema', v.calcularPendientes().map((x) => x.clave), ['w|z', 'x|y', 'p|q']);
+    v.plugin.ajustes.temasClave = ['c'];
+    p.igual('un tema marcado como clave sube', v.calcularPendientes()[0].clave, 'p|q');
+    v.plugin.ajustes.vaciosDescartados = ['p|q'];
+    p.cierto('un par descartado no vuelve', !v.calcularPendientes().some((x) => x.clave === 'p|q'));
+    const llamadas = []; v.vaciosDelMapa = () => { llamadas.push(1); return []; }; v.pendientesCache = null;
+    v.calcularPendientes(); v.calcularPendientes(); v.calcularPendientes();
+    p.igual('repintar los chips no recalcula los pares si nada cambió', llamadas.length, 1);
+    v.vaciosDelMapa = original; v.plugin.ajustes = AJUSTES; v.pendientesCache = null;
+  }
+
   // ── 5. Escritura en las notas: solo lo prometido ─────────────────────────────────────────────
   const pl2 = new Plugin(); pl2.app = app; await pl2.onload();
   pl2.ajustes = Object.assign({}, AJUSTES, { seccionMotivos: 'Conexiones', carpetaAuditoria: 'auditoria' });

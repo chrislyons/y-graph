@@ -350,7 +350,7 @@ export function vacios(datos) {
       }
     }
     candidatos.sort((x, y) => y.comunes - x.comunes || compararIds(x.a, y.a) || compararIds(x.b, y.b));
-    resultado.push({ ti, tj, real, esperado, faltan: esperado - real, candidatos: candidatos.slice(0, 3) });
+    resultado.push({ ti, tj, real, esperado, faltan: esperado - real, candidatos: candidatos.slice(0, 3), todos: candidatos.slice(0, 12) });
   }
   return resultado.sort((a, b) => b.faltan - a.faltan || compararIds(a.ti, b.ti) || compararIds(a.tj, b.tj)).slice(0, 6);
 }

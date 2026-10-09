@@ -529,6 +529,19 @@ const EN = {
   'Reintentar': 'Try again',
   'La IA copió la misma frase para las dos notas, y solo está en una. Se bloquea para no escribir algo no verificable; si se repite, prueba un modelo más capaz.': 'The AI copied the same sentence for both notes, and it is only in one of them. It is blocked so nothing unverifiable is written; if it keeps happening, try a more capable model.',
   'Resumen aprobado (propiedad resumen).': 'Approved summary (summary property).',
+
+  // vínculos por revisar (1.35)
+  'Vínculos por revisar': 'Links to review',
+  '⌁ vínculos por revisar · {0} de {1}': '⌁ links to review · {0} of {1}',
+  '⌁ vínculos por revisar · {0}': '⌁ links to review · {0}',
+  'Revisar primero': 'Review first',
+  'Pares de notas que no se enlazan, aunque ambas se relacionan con las mismas notas. Si el vínculo tiene sentido, la IA propone el motivo y tú lo apruebas; si no, lo descartas.': 'Pairs of notes that are not linked, although both relate to the same notes. If the link makes sense, the AI proposes the reason and you approve it; if not, you dismiss it.',
+  'Opcional: marca con ★ los temas que más te importan y sus pares aparecerán primero.': 'Optional: mark with ★ the topics you care about most and their pairs will show first.',
+  'No hay conexiones pendientes: los temas se enlazan entre sí en proporción a su tamaño.': 'No pending connections: topics link to each other in proportion to their size.',
+  'Las dos se relacionan con: {0}. ¿Deberían enlazarse?': 'Both relate to: {0}. Should they be linked?',
+  'Sí, proponer motivo': 'Yes, propose a reason',
+  'No, descartar': 'No, dismiss',
+  'Ocultar vínculos por revisar': 'Hide links to review',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
 export const enEspanol = () => {

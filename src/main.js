@@ -455,6 +455,9 @@ class VistaMapa extends ItemView {
     this.eligiendo = null;
     this.cerrada = false;
     this.animacion = null;
+    this.vinculosAbiertos = false;
+    this.pendientesCache = null;
+    this.pendientesTotal = 0;
   }
 
   getViewType() { return VISTA; }
@@ -570,6 +573,9 @@ class VistaMapa extends ItemView {
     chipLinea.onclick = () => this.panelLinea();
     const chipHerr = this.barraChips.createEl('button', { cls: 'mn-chip', text: T('⋯ herramientas') });
     chipHerr.onclick = (e) => this.menuHerramientas(e);
+    this.chipRevision = this.barraChips.createEl('button', { cls: 'mn-chip mn-chip-revisar', attr: { title: T('Vínculos por revisar') } });
+    this.chipRevision.hide();
+    this.chipRevision.onclick = () => this.panelVinculos();
     this.cuentas = { afuera: 0, dia: 0 };
     this.novAbierto = false;
     this.workbenchFilters = new FilterPopover({
@@ -633,6 +639,7 @@ class VistaMapa extends ItemView {
     this.renderNow();
     this.iniciarAnimacion();
     this.contarNovedades();
+    this.pintarChipRevision();
     if (!this.plugin.ajustes.configurado && !this.plugin.ajustes.carpetas.trim()) new AsistenteCapas(this.app, this.plugin).open();
   }
 
@@ -959,7 +966,7 @@ class VistaMapa extends ItemView {
   // Cierra el panel flotante y vuelve a la guía.
   cerrarAux() {
     this.panel.empty(); this.panel.removeClass('abierto'); this.guia.show();
-    this.novAbierto = false; this.adoptarEstado(this.estado);
+    this.novAbierto = false; this.vinculosAbiertos = false; this.adoptarEstado(this.estado);
   }
 
   // Pestañas «De afuera» y «Del día»: son una sola bandeja con dos caras.
@@ -975,6 +982,90 @@ class VistaMapa extends ItemView {
     const dias = Math.round((hoy.getTime() - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
     if (dias <= 0) return T('Hoy'); if (dias === 1) return T('Ayer');
     return new Date(t).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+  }
+
+  // ── Vínculos por revisar: pares de temas que se enlazan menos de lo esperable ────────────────
+  vaciosDelMapa() { return vacios(this.datos); }
+
+  // Lista de trabajo: pares que comparten vecinos y no se enlazan. Orden por impacto (vecinos en
+  // común × cuánto falta × temas clave), con descartes y caché por grafo+ajustes.
+  calcularPendientes() {
+    const aj = this.plugin.ajustes;
+    const generacion = `${(this.datos.nodos || []).length}/${(this.datos.aristas || []).length}`;
+    const llave = [generacion, (aj.temasClave || []).join(','), (aj.vaciosDescartados || []).length].join('|');
+    if (this.pendientesCache?.llave === llave) return this.pendientesCache.lista;
+    const clave = new Set(aj.temasClave || []), fuera = new Set(aj.vaciosDescartados || []);
+    const lista = [];
+    for (const v of this.vaciosDelMapa()) {
+      const imp = 1 + (clave.has(v.ti) ? 1 : 0) + (clave.has(v.tj) ? 1 : 0);
+      const falta = Math.min(3, v.esperado / (v.real + 1));
+      for (const c of (v.todos || [])) {
+        const k = [c.a, c.b].sort().join('|');
+        if (fuera.has(k)) continue;
+        lista.push({ ...c, ti: v.ti, tj: v.tj, clave: k, puntaje: c.comunes * falta * imp * imp });
+      }
+    }
+    const res = lista.sort((x, y) => y.puntaje - x.puntaje).slice(0, 20);
+    this.pendientesTotal = lista.length;
+    this.pendientesCache = { llave, lista: res };
+    return res;
+  }
+
+  pintarChipRevision() {
+    const chip = this.chipRevision;
+    if (!chip) return;
+    const pend = (this.datos.aristas || []).length ? this.calcularPendientes().length : 0;
+    if (pend) {
+      chip.setText(this.pendientesTotal > pend ? T('⌁ vínculos por revisar · {0} de {1}', pend, this.pendientesTotal) : T('⌁ vínculos por revisar · {0}', pend));
+      chip.show();
+    } else chip.hide();
+  }
+
+  panelVinculos() {
+    const p = this.panel, pl = this.plugin; p.empty(); this.guia.hide(); this.novAbierto = false; this.vinculosAbiertos = true;
+    const acciones = this.cabecera(p, T('Vínculos por revisar'), T('Revisar primero'),
+      T('Pares de notas que no se enlazan, aunque ambas se relacionan con las mismas notas. Si el vínculo tiene sentido, la IA propone el motivo y tú lo apruebas; si no, lo descartas.'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => this.cerrarAux();
+    const lista = p.createDiv('mn-lista');
+    p.addClass('abierto');
+    const nodos = this.datos.nodos || [], temas = this.datos.temas || {}, capasN = (this.datos.capas || []).length;
+    const porId = new Map(nodos.map((n) => [n.id, n]));
+    const adyMap = new Map(nodos.map((n) => [n.id, new Set()]));
+    for (const e of this.datos.aristas || []) { const a = Array.isArray(e) ? e[0] : e.a, b = Array.isArray(e) ? e[1] : e.b; if (adyMap.has(a) && adyMap.has(b)) { adyMap.get(a).add(b); adyMap.get(b).add(a); } }
+    const temasList = Object.entries(temas).filter(([id]) => nodos.some((n) => n.tema === id));
+    if (temasList.length > 1) {
+      lista.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Opcional: marca con ★ los temas que más te importan y sus pares aparecerán primero.') });
+      const fila = lista.createDiv('mn-temas-clave');
+      const marcados = new Set(pl.ajustes.temasClave || []);
+      for (const [id, [nombre, color]] of temasList) {
+        const b = fila.createEl('button', { cls: 'mn-ficha' + (marcados.has(id) ? ' clave' : '') });
+        b.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': color }); b.appendText(`${marcados.has(id) ? '★ ' : ''}${nombre}`);
+        b.onclick = async () => { marcados.has(id) ? marcados.delete(id) : marcados.add(id); pl.ajustes.temasClave = [...marcados]; await pl.guardar(); this.pendientesCache = null; this.panelVinculos(); this.pintarChipRevision(); };
+      }
+    }
+    const pendientes = this.calcularPendientes();
+    if (!pendientes.length) { lista.createDiv({ cls: 'mn-resumen', text: T('No hay conexiones pendientes: los temas se enlazan entre sí en proporción a su tamaño.') }); return; }
+    for (const c of pendientes) {
+      const A = porId.get(c.a), B = porId.get(c.b);
+      if (!A || !B) continue;
+      const h = lista.createDiv('mn-vacio');
+      const t = h.createDiv('mn-vacio-t');
+      t.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': temas[c.ti]?.[1] }); t.appendText(` ${A.titulo}  ↔  `);
+      t.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': temas[c.tj]?.[1] }); t.appendText(B.titulo);
+      const ult = capasN - 1;
+      const ambas = [...(adyMap.get(c.a) || [])].filter((v) => (adyMap.get(c.b) || new Set()).has(v)).map((v) => porId.get(v)).filter((n) => n && n.propio && !n.fuente && n.capa !== ult);
+      const nombres = ambas.slice(0, 3).map((n) => n.titulo).join(', ') + (ambas.length > 3 ? '…' : '');
+      h.createDiv({ cls: 'mn-motivo', text: T('Las dos se relacionan con: {0}. ¿Deberían enlazarse?', nombres) });
+      const acc = h.createDiv('mn-acciones'), zona = h.createDiv('mn-ia');
+      if (pl.tieneIA()) this.boton(acc, 'sparkles', T('Sí, proponer motivo'), (e) => { e.stopPropagation(); this.sugerirMotivo({ origen: A.ruta, destino: B.ruta, linea: 0, nuevo: true }, zona); });
+      this.boton(acc, 'x', T('No, descartar'), async (e) => {
+        e.stopPropagation();
+        pl.ajustes.vaciosDescartados = [...new Set([...(pl.ajustes.vaciosDescartados || []), c.clave])];
+        await pl.guardar(); this.pendientesCache = null; h.remove(); this.pintarChipRevision();
+      });
+    }
   }
 
   // ── Novedades: chip, conteo y refresco ──────────────────────────────────────────────────────
@@ -1326,6 +1417,7 @@ class VistaMapa extends ItemView {
     }));
     menu.addItem((item) => item.setTitle(estado.modo === 'radial' ? T('Volver a la vista por capas') : T('Vista radial (la nota al centro)')).setIcon('orbit').onClick(() => this.cambiarModo(estado.modo === 'radial' ? 'capas' : 'radial')));
     menu.addItem((item) => item.setTitle(estado.panel === 'vacios' ? T('Ocultar vacíos entre temas') : T('Vacíos entre temas')).setIcon('unlink').onClick(() => this.accionVacios()));
+    menu.addItem((item) => item.setTitle(this.vinculosAbiertos ? T('Ocultar vínculos por revisar') : T('Vínculos por revisar')).setIcon('link').onClick(() => { if (this.vinculosAbiertos) this.cerrarAux(); else this.panelVinculos(); }));
     menu.addItem((item) => item.setTitle(estado.panel === 'salud' ? T('Quitar modo salud') : T('Modo salud')).setIcon('heart-pulse').onClick(() => this.accionSalud()));
     menu.addSeparator();
     for (const [id, definition] of Object.entries(this.datos.temas || {})) {
