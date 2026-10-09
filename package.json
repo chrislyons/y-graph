@@ -12,7 +12,7 @@
     "test:visual": "node pruebas/visualizacion.cjs",
     "test:performance": "node pruebas/rendimiento.cjs",
     "test:browser": "node pruebas/interfaz.cjs && node pruebas/visual.cjs",
-    "test": "npm run build && npm run build:test && node pruebas/plugin.cjs && node pruebas/fuentes.cjs && node pruebas/almacen.cjs && node pruebas/workbench.cjs && node pruebas/exports.cjs && node pruebas/estado.cjs && node pruebas/vistas.cjs && node pruebas/analisis.cjs && node pruebas/render.cjs && node pruebas/interaccion.cjs && node pruebas/v128.cjs && node pruebas/estilos.cjs && node pruebas/idioma.cjs && npm run test:visual && npm run test:performance && npm run test:browser",
+    "test": "npm run build && npm run build:test && node pruebas/plugin.cjs && node pruebas/fuentes.cjs && node pruebas/almacen.cjs && node pruebas/workbench.cjs && node pruebas/exports.cjs && node pruebas/estado.cjs && node pruebas/vistas.cjs && node pruebas/analisis.cjs && node pruebas/render.cjs && node pruebas/interaccion.cjs && node pruebas/v128.cjs && node pruebas/estilos.cjs && node pruebas/idioma.cjs && npm run test:visual && npm run test:performance && npm run test:browser && node pruebas/ingesta.cjs && node pruebas/v133.cjs && node pruebas/v135.cjs && node pruebas/e2e/recorridos.cjs",
     "test:upstream": "node pruebas/ingesta.cjs && node pruebas/v133.cjs && node pruebas/v135.cjs && node pruebas/e2e/recorridos.cjs",
     "e2e": "node pruebas/e2e/recorridos.cjs"
   },
