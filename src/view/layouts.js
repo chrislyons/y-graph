@@ -110,6 +110,8 @@ function prepararNodos(grafo) {
       rota: !!(nodo && (nodo.rota || nodo.rotten || (nodo.fuente && nodo.fuente.rota))),
       grave: !!(nodo && nodo.grave),
       oculto: !!(nodo && nodo.oculto),
+      fecha: nodo && nodo.fecha,
+      contenido: (nodo && nodo.contenido) || null,
       radio: 0,
       x: 0,
       y: 0,

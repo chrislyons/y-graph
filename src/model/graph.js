@@ -1,5 +1,16 @@
 import { T } from '../i18n.js';
 
+// Fecha de una nota para ordenar: la propiedad de fecha, si no la fecha del nombre, si no la
+// última modificación. Timestamp en ms (para perspectiva, línea de tiempo y orden de entrada).
+export function fechaDeNota(f, fm, s = {}) {
+  const v = s.propiedadFecha ? fm[s.propiedadFecha] : null;
+  const t = v ? Date.parse(String(v).slice(0, 10)) : NaN;
+  if (!isNaN(t)) return t;
+  const m = String(f.basename || '').match(/(\d{4}-\d{2}-\d{2})/);
+  const d = m ? Date.parse(m[1]) : NaN;
+  return isNaN(d) ? (f.stat?.mtime || 0) : d;
+}
+
 // Fuentes: rutas explícitas a archivos de las carpetas configuradas. Se aceptan tildes y espacios
 // cuando la ruta va entre acentos graves, en un [[wikilink]] o en un enlace (…); suelta en el texto,
 // solo hasta el primer espacio. Texto que se parece a una ruta pero no resuelve a un archivo o
@@ -130,6 +141,7 @@ export function crearRegistro(app, archivo, texto, mtime = null, s = {}) {
     updated: fm.updated ? String(fm.updated) : null, resumenAprobado: fm.resumen ? String(fm.resumen) : null,
     resumen: fm.resumen ? String(fm.resumen) : resumir(cuerpo), enlaces: Object.freeze(enlaces), alias,
     hub: fm.hub === true || String(fm.hub).toLowerCase() === 'true',
+    fecha: fechaDeNota(archivo, fm, s),
     curados: Object.freeze(curados), lineas: Object.freeze(lineas), finCuerpo,
     citas: Object.freeze(carpetasF.length ? citasDe(cuerpo, carpetasF).map((c) => Object.freeze({ ruta: c.ruta, linea: c.linea })) : []),
   });
@@ -158,7 +170,8 @@ export function construirDesdeRegistros(app, s, registros, resueltos = app.metad
     if (registro.tema && !cfg.temas[registro.tema]) cfg.temas[registro.tema] = [registro.tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
     nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: registro.titulo, tema: registro.tema,
       propio: !!registro.tema, updated: registro.updated, resumenAprobado: registro.resumenAprobado,
-      resumen: registro.resumen, enlaces: registro.enlaces.map((e) => ({ ...e })), alias: registro.alias || [], hub: registro.hub };
+      resumen: registro.resumen, enlaces: registro.enlaces.map((e) => ({ ...e })), alias: registro.alias || [], hub: registro.hub,
+      fecha: registro.fecha };
     porRuta[f.path] = f.path;
   }
   // Validación de la config: carpetas que no tienen ninguna nota y notas que no caen en capa alguna.

@@ -81,14 +81,14 @@
  *
  * Funciona en el iPhone: solo API de Obsidian (nada de Node), sin fuentes externas.
  */
-import { Plugin, ItemView, PluginSettingTab, Setting, Modal, Notice, Platform, debounce, requestUrl, normalizePath } from 'obsidian';
+import { Plugin, ItemView, PluginSettingTab, Setting, Modal, Menu, Notice, Platform, debounce, requestUrl, normalizePath, setIcon } from 'obsidian';
 import { T, enEspanol } from './i18n.js';
 import { leerAjustes, carpetasFuentesDe } from './model/graph.js';
 import { buscarFuera } from './model/search.js';
 import {
   PARRAFOS_RECORDADOS, comoPatron, claveAlias, nombreNota, normalizarCita, citaEnTexto,
   insertarEnSeccion, fatal, limitesIngestaPor, armarTandas, prepararPiezas, esperaPedida,
-  cuotaDiaria,
+  cuotaDiaria, huella,
 } from './model/ingestion.js';
 import { GraphStore } from './model/store.js';
 import { diagnosticos, vecindades, rutaMasCorta, vacios } from './model/analysis.js';
@@ -429,6 +429,18 @@ class AsistenteCapas extends Modal {
   onClose() { this.contentEl.empty(); }
 }
 
+// De dónde salió un clip: la host del frontmatter (X, repo, dominio). Vacío si no trae fuente.
+function fuenteDeClip(fm) {
+  const v = [].concat(fm?.source ?? fm?.url ?? fm?.link ?? [])[0];
+  if (!v) return '';
+  try {
+    const h = new URL(String(v)).hostname.replace(/^www\./, '');
+    if (/^(x|twitter)\.com$/.test(h)) return 'X';
+    if (h === 'github.com') return 'repo';
+    return h;
+  } catch { return ''; }
+}
+
 class VistaMapa extends ItemView {
   constructor(hoja, plugin) {
     super(hoja);
@@ -544,6 +556,19 @@ class VistaMapa extends ItemView {
       item.createSpan({ text: etiqueta });
     }
     this.leyenda.hidden = this.plugin.ajustes.mostrarLeyenda === false;
+    // Barra de chips (novedades, línea de tiempo, herramientas) y el panel flotante compartido.
+    this.guia = raiz.createDiv({ cls: 'mn-guia', text: T('Toca una nota para ver por qué se conecta.') });
+    this.panel = raiz.createDiv('mn-panel');
+    this.barraChips = raiz.createDiv('mn-barra');
+    this.chipNovedades = this.barraChips.createEl('button', { cls: 'mn-chip mn-chip-nov', attr: { title: T('Novedades') } });
+    this.chipNovedades.hide();
+    this.chipNovedades.onclick = () => (this.cuentas?.dia || !this.cuentas?.afuera ? this.panelNovedades() : this.panelLlegadas());
+    const chipLinea = this.barraChips.createEl('button', { cls: 'mn-chip', text: T('◷ línea de tiempo') });
+    chipLinea.onclick = () => this.panelLinea();
+    const chipHerr = this.barraChips.createEl('button', { cls: 'mn-chip', text: T('⋯ herramientas') });
+    chipHerr.onclick = (e) => this.menuHerramientas(e);
+    this.cuentas = { afuera: 0, dia: 0 };
+    this.novAbierto = false;
     this.workbenchFilters = new FilterPopover({
       container: raiz,
       document: documento,
@@ -604,6 +629,7 @@ class VistaMapa extends ItemView {
     this.encuadrar();
     this.renderNow();
     this.iniciarAnimacion();
+    this.contarNovedades();
     if (!this.plugin.ajustes.configurado && !this.plugin.ajustes.carpetas.trim()) new AsistenteCapas(this.app, this.plugin).open();
   }
 
@@ -904,6 +930,364 @@ class VistaMapa extends ItemView {
     this.ayuda.hidden = !visible;
     this.ayuda.open = visible;
     this.workbenchToolbar.helpButton.setAttribute('aria-expanded', visible ? 'true' : 'false');
+  }
+
+  // ── Panel flotante: cabecera, botones y menú de herramientas ────────────────────────────────
+  cabecera(p, ojo, titulo, sub) {
+    const cab = p.createDiv('mn-cab');
+    cab.createDiv({ cls: 'mn-ojo', text: ojo });
+    cab.createEl('h3', { text: titulo });
+    if (sub) cab.createDiv({ cls: 'mn-ruta', text: sub });
+    return cab.createDiv('mn-acciones');
+  }
+
+  boton(acciones, icono, texto, accion, primario) {
+    const b = acciones.createEl('button', { cls: 'mn-btn' + (primario ? ' mn-btn-primario' : ''), attr: { 'aria-label': texto, title: texto } });
+    const i = b.createSpan('mn-btn-icono'); try { setIcon(i, icono); } catch { i.remove(); }
+    b.createSpan({ text: texto }); b.onclick = accion; return b;
+  }
+
+  menuHerramientas(e) {
+    const m = new Menu(); this.llenarHerramientas(m); m.showAtMouseEvent(e);
+  }
+
+  irA(id) { this.enfocar(id, true); }
+
+  // Cierra el panel flotante y vuelve a la guía.
+  cerrarAux() {
+    this.panel.empty(); this.panel.removeClass('abierto'); this.guia.show();
+    this.novAbierto = false; this.adoptarEstado(this.estado);
+  }
+
+  // Pestañas «De afuera» y «Del día»: son una sola bandeja con dos caras.
+  pestanas(p, activa) {
+    const c = this.cuentas || { afuera: 0, dia: 0 }, fila = p.createDiv('mn-acciones');
+    const una = (id, texto, n, ir) => { const b = fila.createEl('button', { cls: 'mn-btn' + (activa === id ? ' activo' : ''), text: texto + ' · ' + n }); b.onclick = ir; };
+    una('afuera', T('De afuera'), c.afuera, () => this.panelLlegadas());
+    una('dia', T('Del día'), c.dia, () => this.panelNovedades());
+  }
+
+  etiquetaDia(t) {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const dias = Math.round((hoy.getTime() - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+    if (dias <= 0) return T('Hoy'); if (dias === 1) return T('Ayer');
+    return new Date(t).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+  }
+
+  // ── Novedades: chip, conteo y refresco ──────────────────────────────────────────────────────
+  async contarNovedades() {
+    const chip = this.chipNovedades, pl = this.plugin;
+    if (!chip) return;
+    const rutasAfuera = new Set((await pl.llegadasDeAfuera()).filter((x) => x.estado === 'nuevo' && x.reciente).map((x) => x.archivo.path));
+    const sueltos = pl.recortesSueltos().length;
+    const mostrar = (texto, n, dia = 0) => {
+      this.cuentas = { afuera: rutasAfuera.size, dia };
+      if (n > 0) { chip.setText(texto); chip.show(); }
+      else if (sueltos) { chip.setText(T('● {0} por ordenar', sueltos)); chip.show(); }
+      else chip.hide();
+    };
+    if (!pl.ingestaLista()) return mostrar(T('● Por ingerir · {0}', rutasAfuera.size), rutasAfuera.size);
+    const st = this.plugin.nov || await pl.recuperarRevision();
+    if (st?.fase === 'buscando') return mostrar(T('● buscando…'), 1);
+    const quedan = st?.prop ? st.prop.novedades.filter((n) => n.estado === 'nuevo' && !n.decision).length : 0;
+    if (quedan) return mostrar(T('● {0} nuevas', quedan), quedan, quedan);
+    const m = await pl.prepararMaterial(pl.reunirCrudo());
+    const dia = new Set(m.piezas.map((x) => x.ruta).filter((r) => !rutasAfuera.has(r))).size;
+    const total = rutasAfuera.size + dia;
+    mostrar(T('● Por ingerir · {0}', total), total, dia);
+  }
+
+  alCambiarNovedades(tipo) {
+    if (tipo === 'progreso') return this.pintarProgreso();
+    this.contarNovedades();
+    if (this.novAbierto && tipo !== 'contar') this.panelNovedades();
+  }
+
+  async panelNovedades() {
+    const p = this.panel, pl = this.plugin; p.empty(); this.guia.hide(); this.novAbierto = true;
+    const acciones = this.cabecera(p, T('Novedades'), T('Lo nuevo de tu material, listo para el wiki'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => this.cerrarAux();
+    this.pestanas(p, 'dia');
+    const lista = p.createDiv('mn-lista mn-nov');
+    p.addClass('abierto');
+    if (!pl.ingestaLista()) {
+      const recortes = pl.recortesSueltos();
+      if (recortes.length) this.pintarRecortes(lista, recortes);
+      else lista.createDiv({ cls: 'mn-resumen', text: T('No hay recortes sueltos.') });
+      return;
+    }
+    const st = this.plugin.nov || await pl.recuperarRevision() || (this.plugin.nov = { fase: 'inicio' });
+    if (st.fase === 'buscando') return this.pintarBusqueda(lista);
+    const recortes = pl.recortesSueltos();
+    if (recortes.length) this.pintarRecortes(lista, recortes);
+    if (st.prop) return this.pintarNovedades(lista);
+    const cargando = lista.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Revisando el material…') });
+    const m = await pl.prepararMaterial(pl.reunirCrudo());
+    st.material = m;
+    if (!this.novAbierto) return;
+    cargando.remove();
+    if (!m.piezas.length) {
+      if (m.repetidos) await pl.confirmarIngesta(m);
+      lista.createDiv({ cls: 'mn-resumen', text: T('No hay material nuevo. Cuando escribas o captures algo en «{0}», aparece aquí.', pl.ajustes.carpetaCrudo) });
+      this.plugin.nov = null; this.contarNovedades();
+      return;
+    }
+    const rutas = [...new Set(m.piezas.map((x) => x.ruta))], total = pl.armarTandas(m.piezas).length;
+    const ultimo = (await pl.leerRegistroIngesta()).ultimoError;
+    if (ultimo && /cuota diaria|daily quota/i.test(ultimo.mensaje) && String(ultimo.fecha).slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+      const aviso = lista.createDiv('mn-nov-aviso mn-nov-error');
+      aviso.createDiv({ cls: 'mn-nov-titulo', text: T('Hoy ya se agotó la cuota') });
+      aviso.createDiv({ cls: 'mn-motivo', text: ultimo.mensaje });
+    }
+    lista.createDiv({ cls: 'mn-resumen', text: T('{0} archivo(s) con material nuevo: {1} llamada(s) a {2}. Tus notas se envían a ese servicio.', rutas.length, total, pl.ajustes.modeloIA || '') });
+    if (m.repetidos) lista.createDiv({ cls: 'mn-motivo mn-tenue', text: T('{0} archivo(s) ya estaban ingeridos o repetidos: no se envían.', m.repetidos) });
+    const det = lista.createEl('details', { cls: 'mn-nov-plegable' });
+    det.createEl('summary', { text: T('Ver archivos ({0})', rutas.length) });
+    for (const r of rutas) det.createDiv({ cls: 'mn-motivo mn-tenue', text: r });
+    const acc = lista.createDiv('mn-acciones');
+    this.boton(acc, 'sparkles', T('Buscar novedades'), () => pl.buscarNovedades(m), true);
+  }
+
+  pintarBusqueda(lista) {
+    const barra = lista.createDiv({ cls: 'mn-nov-barra' });
+    this.novBarra = barra.createDiv();
+    this.novTexto = lista.createDiv({ cls: 'mn-motivo' });
+    lista.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Puedes cerrar este panel y seguir usando el mapa: te aviso cuando termine.') });
+    const acc = lista.createDiv('mn-acciones');
+    const parar = this.boton(acc, 'square', T('Detener'), () => { if (this.plugin.nov) this.plugin.nov.detenido = true; parar.disabled = true; this.novTexto?.setText(T('Deteniendo…')); });
+    this.pintarProgreso();
+  }
+
+  pintarProgreso() {
+    const pr = this.plugin.nov?.progreso;
+    if (!pr || !this.novBarra?.isConnected) return;
+    this.novBarra.setCssProps({ '--mn-avance': `${Math.round((pr.hechas / Math.max(1, pr.n)) * 100)}%` });
+    const paso = pr.fase === 2 ? T('Paso 2 de 2 · comparando con tus páginas') : T('Paso 1 de 2 · buscando novedades');
+    if (!pr.hechas) { this.novTexto?.setText(paso); return; }
+    const min = Math.ceil(((Date.now() - pr.t0) / pr.hechas) * (pr.n - pr.hechas) / 60000);
+    this.novTexto?.setText(`${paso} · ${pr.hechas >= pr.n ? T('Listo.') : min <= 1 ? T('Leídas {0} de {1} · falta menos de un minuto', pr.hechas, pr.n) : T('Leídas {0} de {1} · quedan ~{2} min', pr.hechas, pr.n, min)}`);
+  }
+
+  esSegura(n) { return n.estado === 'nuevo' && n.verificada && !!n.destino && !n.decision && (!n.crear || this.plugin.ajustes.permitirCrear !== false); }
+
+  pintarNovedades(lista) {
+    const pl = this.plugin, st = pl.nov, prop = st.prop;
+    const nodos = this.datos.nodos || [], temas = this.datos.temas || {};
+    const porId = new Map(nodos.map((n) => [n.id, n]));
+    if (prop.leidas < prop.tandas) lista.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Detenido: {0} de {1} llamadas leídas. Lo demás queda para la próxima vez.', prop.leidas, prop.tandas) });
+    const chocan = prop.novedades.filter((n) => n.estado === 'choca');
+    if (chocan.length || prop.contradicciones.length) {
+      const box = lista.createDiv('mn-nov-aviso mn-nov-choca');
+      box.createDiv({ cls: 'mn-nov-titulo', text: T('Choca con lo que ya dice el wiki ({0})', chocan.length + prop.contradicciones.length) });
+      for (const n of chocan) box.createDiv({ cls: 'mn-motivo', text: `${porId.get(n.destino)?.titulo || nombreNota(n.destino)}: ${n.texto} — ${n.detalle || ''}` });
+      for (const x of prop.contradicciones) box.createDiv({ cls: 'mn-motivo', text: `${x.afirmacion} — ${x.fuenteA}${x.fuenteB ? ` · ${x.fuenteB}` : ''}` });
+      box.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Se muestran para que decidas tú: no se pueden aprobar desde aquí.') });
+    }
+    const fallos = prop.fallos || (prop.avisos || []).map((x) => ({ rutas: [], error: x }));
+    const nadaLeido = fallos.length && !prop.exitosas;
+    if (fallos.length) {
+      const box = lista.createDiv('mn-nov-aviso mn-nov-error');
+      const porError = new Map();
+      for (const f of fallos) { if (!porError.has(f.error)) porError.set(f.error, []); porError.get(f.error).push(...f.rutas); }
+      box.createDiv({ cls: 'mn-nov-titulo', text: nadaLeido ? T('No se pudo leer nada') : T('Parte del material no se pudo leer') });
+      for (const [error, rutas] of porError) {
+        box.createDiv({ cls: 'mn-motivo', text: rutas.length ? T('{0} archivo(s): {1}', rutas.length, error) : error });
+        if (rutas.length) { const d = box.createEl('details', { cls: 'mn-nov-plegable' }); d.createEl('summary', { text: T('Ver archivos ({0})', rutas.length) }); for (const r of rutas) d.createDiv({ cls: 'mn-motivo mn-tenue', text: r }); }
+      }
+      box.createDiv({ cls: 'mn-motivo mn-tenue', text: T('No se pierde nada: lo que no se leyó queda pendiente para la próxima vez.') });
+    }
+    const nuevas = prop.novedades.filter((n) => n.estado === 'nuevo');
+    const yaEstaban = prop.novedades.filter((n) => n.estado === 'ya_estaba');
+    if (!nuevas.length && !nadaLeido) lista.createDiv({ cls: 'mn-resumen', text: yaEstaban.length ? T('Todo lo que trae este material ya estaba en el wiki ({0}).', yaEstaban.length) : T('La IA no encontró novedades en este material.') });
+    const seguras = nuevas.filter((n) => this.esSegura(n));
+    const acc = lista.createDiv('mn-acciones');
+    if (seguras.length) this.boton(acc, 'check-check', T('Aprobar las {0} seguras', seguras.length), async () => {
+      for (const n of seguras) await this.aprobarNovedad(n);
+      this.panelNovedades();
+    }, true);
+    this.boton(acc, 'flag', T('Terminar'), async () => {
+      await pl.confirmarIngesta(st.material);
+      new Notice(st.aplicadas ? T('{0} novedad(es) guardadas en el wiki.', st.aplicadas) : T('No se escribió nada.'));
+      await pl.cerrarRevision(); this.novAbierto = false;
+      this.cerrarAux(); this.contarNovedades();
+    }, !seguras.length);
+    const grupos = new Map();
+    for (const n of nuevas.filter((x) => x.destino)) { if (!grupos.has(n.destino)) grupos.set(n.destino, []); grupos.get(n.destino).push(n); }
+    const orden = [...grupos].sort((a, b) => (a[1][0].crear ? 1 : 0) - (b[1][0].crear ? 1 : 0) || b[1].length - a[1].length);
+    for (const [destino, filas] of orden) {
+      const g = lista.createDiv('mn-nov-grupo');
+      const cab = g.createDiv('mn-nov-cab');
+      const nodo = porId.get(destino);
+      cab.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': (nodo && temas[nodo.tema]?.[1]) || (filas[0].crear ? '#34D17A' : '#C9D1FF') });
+      cab.createSpan({ cls: 'mn-nov-pagina', text: nodo?.titulo || nombreNota(destino) });
+      cab.createSpan({ cls: 'mn-nov-meta', text: filas[0].crear && !pl.app.vault.getFileByPath(destino) ? T('página nueva') : T('{0} novedad(es)', filas.length) });
+      if (nodo) { cab.addClass('mn-nov-enlace'); cab.onclick = () => this.irA(destino); }
+      for (const n of filas) this.filaNovedad(g, n);
+    }
+    const sinPagina = nuevas.filter((n) => !n.destino);
+    if (sinPagina.length) {
+      const det = lista.createEl('details', { cls: 'mn-nov-plegable' });
+      det.createEl('summary', { text: T('Sin página clara ({0})', sinPagina.length) });
+      for (const n of sinPagina) this.filaNovedad(det, n);
+    }
+    if (yaEstaban.length) {
+      const det = lista.createEl('details', { cls: 'mn-nov-plegable' });
+      det.createEl('summary', { text: T('Ya estaba en el wiki ({0})', yaEstaban.length) });
+      for (const n of yaEstaban) det.createDiv({ cls: 'mn-motivo mn-tenue', text: `${nombreNota(n.destino)}: ${n.texto}` });
+    }
+  }
+
+  filaNovedad(padre, n) {
+    const fila = padre.createDiv('mn-nov-fila' + (n.decision === 'aprobada' ? ' hecha' : n.decision ? ' descartada' : ''));
+    const cuerpo = fila.createDiv('mn-nov-cuerpo');
+    cuerpo.createDiv({ cls: 'mn-nov-texto', text: n.texto });
+    const meta = [n.seccion && `§ ${n.seccion}`, n.fuente && nombreNota(n.fuente)].filter(Boolean).join(' · ');
+    if (meta) cuerpo.createDiv({ cls: 'mn-nov-meta', text: meta });
+    if (!n.verificada) cuerpo.createDiv({ cls: 'mn-nov-meta mn-nov-sin-cita', text: T('La cita no aparece en el archivo: no se puede aprobar.') });
+    else if (n.crear && this.plugin.ajustes.permitirCrear === false) cuerpo.createDiv({ cls: 'mn-nov-meta mn-nov-sin-cita', text: T('Crear páginas está desactivado en los ajustes.') });
+    if (n.porAlias) cuerpo.createDiv({ cls: 'mn-nov-meta', text: T('Reconocido como «{0}»', n.porAlias) });
+    if (n.decision) return;
+    const bs = fila.createDiv('mn-nov-botones');
+    const no = bs.createEl('button', { cls: 'mn-btn', text: '✗', attr: { 'aria-label': T('Rechazar'), title: T('Rechazar') } });
+    const si = bs.createEl('button', { cls: 'mn-btn mn-btn-primario', text: '✓', attr: { 'aria-label': T('Aprobar'), title: T('Aprobar') } });
+    if (!n.destino || !n.verificada || (n.crear && this.plugin.ajustes.permitirCrear === false)) si.disabled = true;
+    no.onclick = () => { n.decision = 'rechazada'; this.plugin.registrar(`\n## ${new Date().toTimeString().slice(0, 5)} · ingesta descartada\n- Novedad descartada por la persona: ${n.texto}\n- Material de origen: ${n.fuente || '—'}\n`).catch(() => {}); fila.addClass('descartada'); bs.remove(); this.contarNovedades(); this.plugin.guardarRevision(); };
+    si.onclick = async () => { si.disabled = no.disabled = true; if (await this.aprobarNovedad(n)) { fila.addClass(n.decision === 'aprobada' ? 'hecha' : 'descartada'); bs.remove(); } else si.disabled = no.disabled = false; };
+  }
+
+  async aprobarNovedad(n) {
+    try {
+      const r = await this.plugin.aplicarNovedad(n);
+      n.decision = r === 'insertada' ? 'aprobada' : 'ya_estaba';
+      if (r === 'insertada' && this.plugin.nov) this.plugin.nov.aplicadas++;
+      await this.plugin.guardarRevision();
+      this.contarNovedades();
+      return true;
+    } catch (e) { new Notice(e.message, 10000); return false; }
+  }
+
+  pintarRecortes(lista, recortes) {
+    const pl = this.plugin;
+    const g = lista.createDiv('mn-nov-grupo mn-nov-recortes');
+    const cab = g.createDiv('mn-nov-cab');
+    cab.createSpan({ cls: 'mn-nov-pagina', text: T('Recortes sueltos') });
+    cab.createSpan({ cls: 'mn-nov-meta', text: `→ ${pl.ajustes.carpetaRecortes}` });
+    g.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Notas en la raíz que ninguna otra enlaza. Se mueven sin tocar su contenido; si ya había una igual, la repetida va a la papelera.') });
+    const det = g.createEl('details', { cls: 'mn-nov-plegable' });
+    det.createEl('summary', { text: T('Ver notas ({0})', recortes.length) });
+    for (const f of recortes) {
+      const fila = det.createDiv('mn-nov-fila');
+      fila.createDiv({ cls: 'mn-nov-cuerpo' }).createDiv({ cls: 'mn-nov-texto', text: f.basename });
+      const dejar = fila.createDiv('mn-nov-botones').createEl('button', { cls: 'mn-btn', text: T('Dejar aquí'), attr: { title: T('No volver a proponer esta nota') } });
+      dejar.onclick = async () => {
+        pl.ajustes.quedanEnRaiz = [String(pl.ajustes.quedanEnRaiz || '').trim(), f.name].filter(Boolean).join(', ');
+        await pl.guardar(); this.panelNovedades(); this.contarNovedades();
+      };
+    }
+    const acc = g.createDiv('mn-acciones');
+    const b = this.boton(acc, 'folder-input', T('Ordenar {0}', recortes.length), async () => {
+      b.disabled = true;
+      const r = await pl.ordenarRecortes(recortes);
+      new Notice([T('{0} movida(s) a {1}.', r.movidos, pl.ajustes.carpetaRecortes), r.repetidos && T('{0} repetida(s) a la papelera.', r.repetidos), ...r.fallos].filter(Boolean).join(' '), r.fallos.length ? 10000 : 5000);
+      this.panelNovedades(); this.contarNovedades();
+    }, true);
+  }
+
+  // ── Bandeja «Llegó de afuera» ───────────────────────────────────────────────────────────────
+  async panelLlegadas() {
+    const p = this.panel, pl = this.plugin; p.empty(); this.guia.hide(); this.novAbierto = false;
+    const acciones = this.cabecera(p, T('Llegó de afuera'), T('Clips del teléfono y del Web Clipper'), T('Por día de llegada, con lo que ya se ingirió y lo que falta'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => this.cerrarAux();
+    this.pestanas(p, 'afuera');
+    const lista = p.createDiv('mn-lista mn-nov');
+    p.addClass('abierto');
+    const todas = await pl.llegadasDeAfuera();
+    if (!pl.ajustes.carpetaRecortes) { lista.createDiv({ cls: 'mn-resumen', text: T('Falta la «carpeta de recortes» en los ajustes: de ahí leo lo que llega de afuera.') }); return; }
+    const nuevas = todas.filter((x) => x.estado === 'nuevo' && x.reciente);
+    const resumen = lista.createDiv('mn-resumen');
+    resumen.setText(nuevas.length ? T('{0} clip(s) esperando ingesta.', nuevas.length) : T('Nada esperando: todo lo reciente ya se ingirió.'));
+    if (nuevas.length) {
+      const acc = lista.createDiv('mn-acciones');
+      if (!pl.ingestaLista()) lista.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Para ingerir hace falta configurar la ingesta y una IA en los ajustes.') });
+      else this.boton(acc, 'sparkles', T('Ingerir novedades ({0})', nuevas.length), async () => {
+        const m = await pl.prepararMaterial(nuevas.map((x) => x.archivo));
+        m.hasta = 0;
+        if (!m.piezas.length) { await pl.confirmarIngesta(m); new Notice(T('Estos clips no traen nada nuevo para enviar.')); return this.panelLlegadas(); }
+        pl.buscarNovedades(m); this.panelNovedades();
+      }, true);
+    }
+    const dias = new Map();
+    for (const x of todas) { const d = this.etiquetaDia(x.fecha); if (!dias.has(d)) dias.set(d, []); dias.get(d).push(x); }
+    const recientes = [...dias].filter(([, f]) => f[0].reciente), antiguos = todas.filter((x) => !x.reciente);
+    for (const [dia, filas] of recientes) {
+      const g = lista.createDiv('mn-nov-grupo');
+      const cab = g.createDiv('mn-nov-cab');
+      cab.createSpan({ cls: 'mn-nov-pagina', text: dia });
+      cab.createSpan({ cls: 'mn-nov-meta', text: T('{0} clip(s)', filas.length) });
+      for (const x of filas) this.filaLlegada(g, x);
+    }
+    if (antiguos.length) {
+      const det = lista.createEl('details', { cls: 'mn-nov-plegable' });
+      det.createEl('summary', { text: T('Más de 14 días ({0}): no se cuentan', antiguos.length) });
+      for (const x of antiguos.slice(0, 60)) this.filaLlegada(det, x);
+    }
+  }
+
+  filaLlegada(padre, x) {
+    const fila = padre.createDiv('mn-nov-fila' + (x.estado === 'ingerido' ? ' hecha' : x.estado === 'ignorado' ? ' descartada' : ''));
+    const cuerpo = fila.createDiv('mn-nov-cuerpo');
+    cuerpo.createDiv({ cls: 'mn-nov-texto', text: x.archivo.basename.replace(/^\d{4}-\d{2}-\d{2}-/, '').slice(0, 90) });
+    const hora = new Date(x.fecha).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const estado = { nuevo: T('nuevo'), ingerido: T('ingerido'), ignorado: T('ignorado') }[x.estado];
+    const fuente = fuenteDeClip(this.app.metadataCache.getFileCache(x.archivo)?.frontmatter);
+    cuerpo.createDiv({ cls: 'mn-nov-meta', text: [hora, fuente, estado].filter(Boolean).join(' · ') });
+    fila.onclick = () => { this.app.workspace.openLinkText(x.archivo.path, '', false); };
+  }
+
+  // ── Línea de tiempo ─────────────────────────────────────────────────────────────────────────
+  panelLinea() {
+    const p = this.panel; p.empty(); this.guia.hide(); this.novAbierto = false;
+    const acciones = this.cabecera(p, T('Línea de tiempo'), T('Qué entró y adónde fue'), T('Por línea de negocio y por día, de lo más nuevo a lo más viejo'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => this.cerrarAux();
+    const lista = p.createDiv('mn-lista mn-nov');
+    p.addClass('abierto');
+    const nodos = this.datos.nodos, temas = this.datos.temas || {}, capas = this.datos.capas || [];
+    const notas = nodos.filter((n) => !n.fuente && !n.virtual && n.fecha).sort((a, b) => b.fecha - a.fecha);
+    const fecha = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const tarjetas = lista.createDiv('mn-tarjetas');
+    for (const [id, [nombre, color]] of Object.entries(temas)) {
+      const deTema = notas.filter((n) => n.tema === id); if (!deTema.length) continue;
+      const t = tarjetas.createDiv('mn-tarjeta');
+      const cab = t.createDiv('mn-nov-cab');
+      cab.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': color });
+      cab.createSpan({ cls: 'mn-nov-pagina', text: nombre });
+      cab.createSpan({ cls: 'mn-nov-meta', text: T('{0} nota(s)', deTema.length) });
+      t.createDiv({ cls: 'mn-motivo', text: deTema[0].titulo });
+      t.createDiv({ cls: 'mn-nov-meta', text: T('última novedad · {0}', fecha(deTema[0].fecha)) });
+      t.onclick = () => { this.estado.filtro = id; this.workbenchToolbar.searchInput.value = id; this.adoptarEstado(this.estado); };
+    }
+    const dias = new Map();
+    for (const n of notas.slice(0, 120)) { const d = this.etiquetaDia(n.fecha); if (!dias.has(d)) dias.set(d, []); dias.get(d).push(n); }
+    for (const [dia, filas] of dias) {
+      const g = lista.createDiv('mn-nov-grupo');
+      const cab = g.createDiv('mn-nov-cab');
+      cab.createSpan({ cls: 'mn-nov-pagina', text: dia });
+      cab.createSpan({ cls: 'mn-nov-meta', text: T('{0} nota(s)', filas.length) });
+      for (const n of filas) {
+        const fila = g.createDiv('mn-nov-fila'); fila.addClass('mn-clic');
+        const cuerpo = fila.createDiv('mn-nov-cuerpo');
+        cuerpo.createDiv({ cls: 'mn-nov-texto', text: n.titulo });
+        cuerpo.createDiv({ cls: 'mn-nov-meta', text: [temas[n.tema]?.[0] || T('sin tema'), capas[n.capa]?.[1]].filter(Boolean).join(' · ') });
+        fila.onclick = () => this.irA(n.id);
+      }
+    }
+    if (!notas.length) lista.createDiv({ cls: 'mn-resumen', text: T('Todavía no hay notas con fecha.') });
   }
 
   inspectorCallbacks() {
@@ -1685,6 +2069,25 @@ export default class MapaNeuronal extends Plugin {
     if (ruta.split('/').some((seg) => seg.startsWith('.'))) return true;
     return String(this.ajustes.ignorarIngesta || '').split(/[,\n]/).map((g) => g.trim()).filter(Boolean)
       .some((g) => comoPatron(g).test(g.includes('/') ? ruta : nombre));
+  }
+
+  // Lo que entró de afuera (teléfono, Web Clipper): vive en la carpeta de recortes, con su fecha de
+  // llegada y si ya se ingeró. «reciente» = llegó en los últimos 14 días.
+  async llegadasDeAfuera() {
+    const dir = normalizePath(String(this.ajustes.carpetaRecortes || '').replace(/^\/+|\/+$/g, ''));
+    if (!dir || dir === '/') return [];
+    const reg = await this.leerRegistroIngesta(), limite = Date.now() - 14 * 86400000, out = [];
+    for (const f of this.app.vault.getMarkdownFiles()) {
+      if (!f.path.startsWith(dir + '/')) continue;
+      const fecha = f.stat?.ctime || f.stat?.mtime || 0;
+      let estado = 'ignorado';
+      if (!this.ignoradoEnIngesta(f.path)) {
+        const antes = reg.archivos[f.path];
+        estado = antes && antes.huella === huella(await this.app.vault.cachedRead(f)) ? 'ingerido' : 'nuevo';
+      }
+      out.push({ archivo: f, estado, fecha, reciente: fecha >= limite });
+    }
+    return out.sort((a, b) => b.fecha - a.fecha);
   }
 
   // Recortes sueltos: notas en la raíz que nadie enlaza, que no están en la lista de las que se
