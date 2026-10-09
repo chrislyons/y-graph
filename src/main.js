@@ -91,7 +91,8 @@ import {
   cuotaDiaria, huella,
 } from './model/ingestion.js';
 import { GraphStore } from './model/store.js';
-import { diagnosticos, vecindades, rutaMasCorta, vacios } from './model/analysis.js';
+import { diagnosticos, vecindades, rutaMasCorta, vacios, candidatasPerspectiva } from './model/analysis.js';
+import { indiceTfidf, tsne, distanciasTfidf } from './model/similarity.js';
 import { normalizarEstado, aplicarFiltros } from './view/state.js';
 import { GraphRenderer } from './view/renderer.js';
 import { WorkbenchToolbar } from './ui/toolbar.js';
@@ -1106,6 +1107,72 @@ class VistaMapa extends ItemView {
     }
   }
 
+  // ── Revisión con perspectiva y mapa por parecido ─────────────────────────────────────────────
+  async indiceDelMapa() {
+    const notas = (this.datos.nodos || []).filter((n) => n.propio && !n.fuente && !n.virtual && n.ruta);
+    if (this.indiceCache?.n === notas.length) return this.indiceCache.ix;
+    const docs = [];
+    for (const n of notas) { const f = this.app.vault.getFileByPath(n.ruta); if (f) docs.push({ ruta: n.ruta, texto: await this.app.vault.cachedRead(f) }); }
+    const ix = indiceTfidf(docs); this.indiceCache = { n: notas.length, ix };
+    return ix;
+  }
+
+  panelPerspectiva() {
+    const p = this.panel, pl = this.plugin; p.empty(); this.guia.hide(); this.novAbierto = false;
+    const acciones = this.cabecera(p, T('Revisar con perspectiva'), T('Notas con tiempo encima'),
+      T('Notas de hace meses que otras notas más nuevas enlazan o rodean. No te dice si siguen vigentes: te muestra dónde mirar. Abre la nota y, si sigue valiendo, márcala.'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => this.cerrarAux();
+    const lista = p.createDiv('mn-lista'), DIA = 86400000, ahora = Date.now(), vistas = pl.ajustes.revisadas || {};
+    const nodos = this.datos.nodos || [], temas = this.datos.temas || {}, ady = this.ady;
+    const porId = {}; for (const n of nodos) porId[n.id] = n;
+    const filas = candidatasPerspectiva(nodos, ady, porId, vistas, ahora);
+    if (!filas.length) lista.createDiv({ cls: 'mn-resumen', text: T('Nada con tiempo encima por ahora: no hay notas de más de 90 días con novedades alrededor.') });
+    for (const f of filas.slice(0, 30)) {
+      const n = f.nota, h = lista.createDiv('mn-vacio'), t = h.createDiv('mn-vacio-t');
+      t.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': temas[n.tema]?.[1] }); t.appendText(' ' + n.titulo);
+      h.createDiv({ cls: 'mn-motivo', text: T('Hace {0} meses · {1} nota(s) más nuevas la rodean: {2}', Math.round((ahora - n.fecha) / DIA / 30), f.nuevas.length, f.nuevas.slice(0, 2).map((x) => x.titulo).join(', ') + (f.nuevas.length > 2 ? '…' : '')) });
+      const acc = h.createDiv('mn-acciones');
+      this.boton(acc, 'file-text', T('Abrir'), () => this.abrirNota(n.ruta));
+      this.boton(acc, 'check', T('Sigue vigente'), async () => { pl.ajustes.revisadas = { ...vistas, [n.ruta]: ahora }; await pl.guardar(); h.remove(); });
+    }
+    p.addClass('abierto');
+  }
+
+  async panelParecido() {
+    const p = this.panel; p.empty(); this.guia.hide(); this.novAbierto = false;
+    const acciones = this.cabecera(p, T('Mapa por parecido'), T('Notas por texto parecido'),
+      T('Cada punto es una nota; las que hablan de lo mismo quedan juntas. Solo importa quién está cerca de quién, no las distancias entre grupos. Toca un punto para abrir la nota.'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => this.cerrarAux();
+    const caja = p.createDiv('mn-lista'); caja.createDiv({ cls: 'mn-motivo mn-tenue', text: T('Calculando…') });
+    p.addClass('abierto');
+    const nodos = this.datos.nodos || [], temas = this.datos.temas || {}, ady = this.ady;
+    const notas = nodos.filter((n) => n.propio && !n.fuente && !n.virtual && n.ruta).sort((a, b) => (ady[b.id]?.length || 0) - (ady[a.id]?.length || 0)).slice(0, 250);
+    let ix; try { ix = await this.indiceDelMapa(); } catch { ix = null; }
+    caja.empty();
+    const conTexto = ix ? notas.filter((n) => ix.vecs.some((v) => v.ruta === n.ruta)) : [];
+    if (conTexto.length < 5) { caja.createDiv({ cls: 'mn-resumen', text: T('Hacen falta al menos 5 notas con texto para dibujar el mapa.') }); return; }
+    const pts = tsne(distanciasTfidf(ix, conTexto.map((n) => n.ruta)), conTexto.length);
+    const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(Math.max(...xs) - x0, 1e-9), h = Math.max(Math.max(...ys) - y0, 1e-9), esc = 92 / Math.max(w, h);
+    const NS = 'http://www.w3.org/2000/svg';
+    const doc = (this.lienzo && this.lienzo.ownerDocument) || (typeof document !== 'undefined' ? document : null);
+    if (!doc || typeof doc.createElementNS !== 'function') { caja.createDiv({ cls: 'mn-resumen', text: T('Hacen falta al menos 5 notas con texto para dibujar el mapa.') }); return; }
+    const svg = doc.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100'); svg.setAttribute('class', 'mn-parecido'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', T('Mapa por parecido'));
+    conTexto.forEach((n, i) => {
+      const c = doc.createElementNS(NS, 'circle');
+      c.setAttribute('cx', String(4 + (pts[i][0] - x0) * esc)); c.setAttribute('cy', String(4 + (pts[i][1] - y0) * esc)); c.setAttribute('r', '1.4');
+      c.setAttribute('fill', temas[n.tema]?.[1] || '#8A93B8');
+      const tt = doc.createElementNS(NS, 'title'); tt.textContent = n.titulo; c.appendChild(tt);
+      c.addEventListener('click', () => this.abrirNota(n.ruta)); svg.appendChild(c);
+    });
+    caja.appendChild(svg);
+    caja.createDiv({ cls: 'mn-motivo mn-tenue', text: T('{0} notas, las más conectadas. Color = tema.', conTexto.length) });
+  }
+
   // ── Novedades: chip, conteo y refresco ──────────────────────────────────────────────────────
   async contarNovedades() {
     const chip = this.chipNovedades, pl = this.plugin;
@@ -1456,6 +1523,8 @@ class VistaMapa extends ItemView {
     menu.addItem((item) => item.setTitle(estado.modo === 'radial' ? T('Volver a la vista por capas') : T('Vista radial (la nota al centro)')).setIcon('orbit').onClick(() => this.cambiarModo(estado.modo === 'radial' ? 'capas' : 'radial')));
     menu.addItem((item) => item.setTitle(estado.panel === 'vacios' ? T('Ocultar vacíos entre temas') : T('Vacíos entre temas')).setIcon('unlink').onClick(() => this.accionVacios()));
     menu.addItem((item) => item.setTitle(this.vinculosAbiertos ? T('Ocultar vínculos por revisar') : T('Vínculos por revisar')).setIcon('link').onClick(() => { if (this.vinculosAbiertos) this.cerrarAux(); else this.panelVinculos(); }));
+    menu.addItem((item) => item.setTitle(T('Mapa por parecido')).setIcon('scatter-chart').onClick(() => this.panelParecido()));
+    menu.addItem((item) => item.setTitle(T('Revisar con perspectiva')).setIcon('hourglass').onClick(() => this.panelPerspectiva()));
     menu.addItem((item) => item.setTitle(estado.panel === 'salud' ? T('Quitar modo salud') : T('Modo salud')).setIcon('heart-pulse').onClick(() => this.accionSalud()));
     menu.addSeparator();
     for (const [id, definition] of Object.entries(this.datos.temas || {})) {

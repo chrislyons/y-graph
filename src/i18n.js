@@ -558,6 +558,20 @@ const EN = {
   'Sugerir desde el vault': 'Suggest from the vault',
   'declara el tag «{0}»': 'declares the tag «{0}»',
   'Tema de contenido: reúne las {0} notas que declaran el tag «{1}».': 'Content topic: gathers the {0} notes that declare the tag «{1}».',
+
+  // perspectiva y mapa por parecido (1.35)
+  'Revisar con perspectiva': 'Review with hindsight',
+  'Notas con tiempo encima': 'Notes with time on them',
+  'Notas de hace meses que otras notas más nuevas enlazan o rodean. No te dice si siguen vigentes: te muestra dónde mirar. Abre la nota y, si sigue valiendo, márcala.': 'Months-old notes that newer notes link to or surround. It does not tell you whether they still hold: it shows where to look. Open the note and, if it still holds, mark it.',
+  'Nada con tiempo encima por ahora: no hay notas de más de 90 días con novedades alrededor.': 'Nothing with time on it for now: no notes older than 90 days have newer notes around them.',
+  'Hace {0} meses · {1} nota(s) más nuevas la rodean: {2}': '{0} months ago · {1} newer note(s) around it: {2}',
+  'Sigue vigente': 'Still valid',
+  'Mapa por parecido': 'Similarity map',
+  'Notas por texto parecido': 'Notes by similar text',
+  'Cada punto es una nota; las que hablan de lo mismo quedan juntas. Solo importa quién está cerca de quién, no las distancias entre grupos. Toca un punto para abrir la nota.': 'Each dot is a note; those about the same thing end up together. Only who is near whom matters, not the distances between groups. Tap a dot to open the note.',
+  'Calculando…': 'Calculating…',
+  'Hacen falta al menos 5 notas con texto para dibujar el mapa.': 'At least 5 notes with text are needed to draw the map.',
+  '{0} notas, las más conectadas. Color = tema.': '{0} notes, the most connected. Colour = topic.',
 };
 let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
 export const enEspanol = () => {
