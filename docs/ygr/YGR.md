@@ -8,6 +8,7 @@ Read [[YGR001 Why Graph History Import]] for upstream provenance and repository 
 
 ## Recent Documents
 
+- [[YGR007 Aesthetics Merge - YGR002 Engine Restored]] - Overview to bottom navbar, YGR002 canvas engine, mono chrome
 - [[YGR006 Upstream 1.35.0 Rebase and Dual-Vault Delivery]] - Merge, port waves, gate, delivery
 - [[YGR005 Hover Restoration and Frame-Path Performance]] - Root causes and fixes for the missing hover and the lag
 - [[YGR004 Whitebox research-vault Plugin Review]] - Vault deployment provenance, config audit, cross-repo recommendations
@@ -23,6 +24,7 @@ Read [[YGR001 Why Graph History Import]] for upstream provenance and repository 
 - [[YGR004 Whitebox research-vault Plugin Review]]
 - [[YGR005 Hover Restoration and Frame-Path Performance]]
 - [[YGR006 Upstream 1.35.0 Rebase and Dual-Vault Delivery]]
+- [[YGR007 Aesthetics Merge - YGR002 Engine Restored]]
 
 ## Navigation
 
